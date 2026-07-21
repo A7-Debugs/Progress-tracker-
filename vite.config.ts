@@ -5,9 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 // GitHub Pages serves this project from /<repo-name>/, not the domain root.
+// The path segment is case-sensitive and must match the repo name exactly
+// (it's "Progress-tracker-", capital P — not "progress-tracker-").
 // HashRouter is used app-wide specifically so client-side routes keep working
 // under that subpath without any server-side rewrite rules.
-const BASE = process.env.GITHUB_PAGES === 'true' ? '/progress-tracker-/' : '/'
+const BASE = process.env.GITHUB_PAGES === 'true' ? '/Progress-tracker-/' : '/'
 
 // https://vite.dev/config/
 export default defineConfig({
