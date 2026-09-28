@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/Toaster';
 import { seedIfEmpty } from '@/lib/seed';
+import { ensureLifeProfile } from '@/lib/life/defaults';
 
 import Today from '@/routes/Today';
 import SessionLog from '@/routes/SessionLog';
@@ -20,12 +21,19 @@ import SettingsPage from '@/routes/SettingsPage';
 import Me from '@/routes/Me';
 import SessionHistory from '@/routes/SessionHistory';
 import SessionDetail from '@/routes/SessionDetail';
+import LifeDashboard from '@/routes/life/LifeDashboard';
+import CheckIn from '@/routes/life/CheckIn';
+import Review from '@/routes/life/Review';
+import Trends from '@/routes/life/Trends';
+import Finance from '@/routes/life/Finance';
+import Goals from '@/routes/life/Goals';
+import SystemPage from '@/routes/life/SystemPage';
 
 export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    seedIfEmpty().finally(() => setReady(true));
+    Promise.all([seedIfEmpty(), ensureLifeProfile()]).finally(() => setReady(true));
   }, []);
 
   if (!ready) {
@@ -41,7 +49,13 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route element={<AppShell />}>
-            <Route path="/" element={<Today />} />
+            <Route path="/" element={<LifeDashboard />} />
+            <Route path="/train" element={<Today />} />
+            <Route path="/review" element={<Review />} />
+            <Route path="/trends" element={<Trends />} />
+            <Route path="/finance" element={<Finance />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/system" element={<SystemPage />} />
             <Route path="/programs" element={<Programs />} />
             <Route path="/programs/:programId" element={<ProgramDetail />} />
             <Route path="/exercises" element={<Exercises />} />
@@ -58,6 +72,7 @@ export default function App() {
           </Route>
           {/* Full-bleed routes without bottom nav */}
           <Route path="/session/:sessionId" element={<SessionLog />} />
+          <Route path="/checkin" element={<CheckIn />} />
           <Route path="/programs/:programId/workouts/:workoutId" element={<WorkoutEditor />} />
         </Routes>
       </HashRouter>

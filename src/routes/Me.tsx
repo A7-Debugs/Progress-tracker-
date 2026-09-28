@@ -1,9 +1,14 @@
 import { useNavigate } from 'react-router-dom';
-import { Scale, Camera, CalendarDays, Dumbbell, History, Settings, ChevronRight, Search } from 'lucide-react';
+import { Scale, Camera, CalendarDays, Dumbbell, History, Settings, ChevronRight, Search, LayoutGrid, LineChart, Gauge, Layers, TrendingUp } from 'lucide-react';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
 
 const ITEMS = [
+  { to: '/system', icon: Gauge, label: 'The System', desc: 'Habits, levels, modes, scoring rules' },
+  { to: '/goals', icon: Layers, label: 'Goal Tree', desc: 'Vision → 10y → 5y → 1y → 90d → habits' },
+  { to: '/trends', icon: TrendingUp, label: 'Life Trends', desc: 'Consistency, sleep, deep work, finance' },
+  { to: '/programs', icon: LayoutGrid, label: 'Training Programs', desc: 'Splits & workout templates' },
+  { to: '/analytics', icon: LineChart, label: 'Training Analytics', desc: 'Strength progression, volume, PRs' },
   { to: '/bodyweight', icon: Scale, label: 'Bodyweight & Health', desc: 'Weight, body fat, sleep, nutrition' },
   { to: '/photos', icon: Camera, label: 'Progress Photos', desc: 'Front, side, back comparisons' },
   { to: '/calendar', icon: CalendarDays, label: 'Calendar', desc: 'Training days & streaks' },

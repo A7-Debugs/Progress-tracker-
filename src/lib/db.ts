@@ -10,6 +10,7 @@ import type {
   ProgressPhoto,
   Settings,
 } from './types';
+import type { DailyCheckin, WeekPlan, FinanceSnapshot, LifeProfile } from './life/types';
 
 class OverloadDB extends Dexie {
   exerciseDefs!: EntityTable<ExerciseDef, 'id'>;
@@ -21,6 +22,10 @@ class OverloadDB extends Dexie {
   bodyweightLogs!: EntityTable<BodyweightLog, 'id'>;
   progressPhotos!: EntityTable<ProgressPhoto, 'id'>;
   settings!: EntityTable<Settings, 'id'>;
+  checkins!: EntityTable<DailyCheckin, 'id'>;
+  weekPlans!: EntityTable<WeekPlan, 'id'>;
+  financeSnapshots!: EntityTable<FinanceSnapshot, 'id'>;
+  lifeProfile!: EntityTable<LifeProfile, 'id'>;
 
   constructor() {
     super('overload-db');
@@ -36,6 +41,13 @@ class OverloadDB extends Dexie {
       bodyweightLogs: 'id, date',
       progressPhotos: 'id, date, angle',
       settings: 'id',
+    });
+    // Life OS: daily check-ins, weekly plans/reviews, monthly finance snapshots, profile.
+    this.version(2).stores({
+      checkins: 'id, date',
+      weekPlans: 'id, weekStart',
+      financeSnapshots: 'id, month',
+      lifeProfile: 'id',
     });
   }
 }

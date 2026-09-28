@@ -48,14 +48,14 @@ export default function SessionLog() {
     }
     await db.sessions.update(sessionId!, { completedAt: Date.now(), notes: displayNotes });
     toast('Workout saved');
-    navigate('/', { replace: true });
+    navigate('/train', { replace: true });
   }
 
   async function discard() {
     if (!confirm('Discard this workout session? All logged sets will be deleted.')) return;
     await db.setLogs.where('sessionId').equals(sessionId!).delete();
     await db.sessions.delete(sessionId!);
-    navigate('/', { replace: true });
+    navigate('/train', { replace: true });
   }
 
   return (

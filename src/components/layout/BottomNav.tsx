@@ -1,18 +1,19 @@
 import { NavLink } from 'react-router-dom';
-import { Dumbbell, LayoutGrid, LineChart, User } from 'lucide-react';
+import { CalendarCheck, Dumbbell, Gauge, User, Wallet } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 const ITEMS = [
-  { to: '/', label: 'Today', icon: Dumbbell, end: true },
-  { to: '/programs', label: 'Programs', icon: LayoutGrid, end: false },
-  { to: '/analytics', label: 'Progress', icon: LineChart, end: false },
+  { to: '/', label: 'Today', icon: Gauge, end: true },
+  { to: '/train', label: 'Train', icon: Dumbbell, end: false },
+  { to: '/review', label: 'Review', icon: CalendarCheck, end: false },
+  { to: '/finance', label: 'Money', icon: Wallet, end: false },
   { to: '/me', label: 'Me', icon: User, end: false },
 ];
 
 export function BottomNav() {
   return (
     <nav className="sticky bottom-0 z-30 border-t border-base-800 bg-base-950/90 backdrop-blur-lg safe-bottom">
-      <div className="mx-auto max-w-lg grid grid-cols-4">
+      <div className="mx-auto max-w-lg grid grid-cols-5">
         {ITEMS.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
