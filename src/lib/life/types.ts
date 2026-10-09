@@ -11,7 +11,8 @@ export type HabitId =
   | 'mobility'
   | 'connect'
   | 'shutdown'
-  | 'journal';
+  | 'journal'
+  | 'calories';
 
 export type Domain =
   | 'health'
@@ -96,6 +97,44 @@ export interface FinanceSnapshot {
   updatedAt: number;
 }
 
+/** A saved food or meal. Values are per one serving. */
+export interface FoodItem {
+  id: string;
+  name: string;
+  serving: string; // e.g. "150g cooked", "1 scoop", "1 pot"
+  protein: number; // grams per serving
+  calories: number | null; // kcal per serving
+  archived: boolean;
+  useCount: number;
+  lastUsedAt: number;
+  createdAt: number;
+}
+
+/** One logged entry on a day. Totals are frozen at log time so editing a food never rewrites history. */
+export interface FoodLog {
+  id: string;
+  date: string;
+  foodId: string | null; // null = quick add
+  name: string;
+  servings: number;
+  protein: number; // total grams for this entry
+  calories: number | null; // total kcal for this entry
+  createdAt: number;
+}
+
+export type CalorieGoal = 'cut' | 'maintain' | 'bulk';
+
+export interface CalorieSettings {
+  /** Date calorie tracking was unlocked (awareness phase starts). */
+  unlockedAt: string | null;
+  goal: CalorieGoal | null;
+  /** Estimated maintenance kcal/day when the target was set. */
+  maintenance: number | null;
+  /** Daily target kcal. null = still in the awareness phase. */
+  target: number | null;
+  targetSetAt: string | null;
+}
+
 export interface GoalNode {
   id: string;
   parentId: string | null;
@@ -125,6 +164,11 @@ export interface LifeProfile {
   currency: string;
   proteinMinG: number;
   proteinIdealG: number;
+  /** When true (default), protein targets follow the latest bodyweight × g/kg. Optional for older profiles. */
+  proteinAuto?: boolean;
+  proteinPerKg?: { min: number; ideal: number };
+  calorie?: CalorieSettings;
+  foodsSeeded?: boolean;
   pausedHabits: HabitId[];
   fiAnnualSpend: number | null; // null → derive from snapshots
   withdrawalRate: number; // 0.04

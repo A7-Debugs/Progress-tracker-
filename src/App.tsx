@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/Toaster';
 import { seedIfEmpty } from '@/lib/seed';
 import { ensureLifeProfile } from '@/lib/life/defaults';
+import { ensureStarterFoods } from '@/lib/life/nutrition';
 
 import Today from '@/routes/Today';
 import SessionLog from '@/routes/SessionLog';
@@ -28,12 +29,13 @@ import Trends from '@/routes/life/Trends';
 import Finance from '@/routes/life/Finance';
 import Goals from '@/routes/life/Goals';
 import SystemPage from '@/routes/life/SystemPage';
+import FoodLogPage from '@/routes/life/FoodLog';
 
 export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([seedIfEmpty(), ensureLifeProfile()]).finally(() => setReady(true));
+    Promise.all([seedIfEmpty(), ensureLifeProfile().then(ensureStarterFoods)]).finally(() => setReady(true));
   }, []);
 
   if (!ready) {
@@ -73,6 +75,7 @@ export default function App() {
           {/* Full-bleed routes without bottom nav */}
           <Route path="/session/:sessionId" element={<SessionLog />} />
           <Route path="/checkin" element={<CheckIn />} />
+          <Route path="/food" element={<FoodLogPage />} />
           <Route path="/programs/:programId/workouts/:workoutId" element={<WorkoutEditor />} />
         </Routes>
       </HashRouter>

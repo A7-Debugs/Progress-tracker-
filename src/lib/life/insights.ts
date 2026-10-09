@@ -15,6 +15,7 @@ import {
   type PeriodEval,
 } from './engine';
 import { recommendProgression } from './progression';
+import { estimateMaintenance } from './nutrition';
 import type { Domain, GoalNode, HabitId } from './types';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -466,7 +467,36 @@ export function detectGaming(ctx: LifeContext): Flag[] {
       body: `${active} active habits with ${pct(p21.habitAdherence ?? 0)} adherence. Pause the newest one in Settings → Life OS until the rest are automatic.`,
     });
 
-  // 6. High-Performance Mode every week
+  // 6. Calories vs bodyweight
+  const cal = ctx.profile.calorie;
+  if (cal?.unlockedAt) {
+    const start = addDaysStr(ctx.today, -20);
+    let entries = 0;
+    let missing = 0;
+    for (const [d, n] of ctx.nutrition) {
+      if (d < start) continue;
+      entries += n.entries;
+      missing += n.missingCalories;
+    }
+    if (entries >= 10 && missing / entries >= 0.2)
+      flags.push({
+        title: 'Calorie totals are incomplete',
+        body: `${missing} of ${entries} food entries in 3 weeks have no calories, so daily totals undercount. Add calories to those foods in My foods.`,
+      });
+    if (cal.target && cal.goal) {
+      const est = estimateMaintenance(ctx.nutrition, ctx.bodyweight, start, ctx.today);
+      const onTarget = est.avgIntake !== null && Math.abs(est.avgIntake - cal.target) <= 150;
+      const k = est.kgPerWeek;
+      const wrongWay = k !== null && ((cal.goal === 'cut' && k > 0.1) || (cal.goal === 'bulk' && k < -0.1) || (cal.goal === 'maintain' && Math.abs(k) > 0.3));
+      if (est.ok && onTarget && wrongWay)
+        flags.push({
+          title: 'Calories and weight disagree',
+          body: `You're averaging ${est.avgIntake} kcal (target ${cal.target}) but weight is moving ${k! > 0 ? '+' : ''}${k} kg/week. Usually means un-logged food (oils, drinks, snacks) or that maintenance has shifted — re-estimate in The System.`,
+        });
+    }
+  }
+
+  // 7. High-Performance Mode every week
   const hp = pastWeeks(ctx, 4).filter((w) => ctx.planByWeek.get(w.start)?.mode === 'high').length;
   if (hp >= 3)
     flags.push({ title: 'High-Performance Mode is becoming the default', body: `${hp} of the last 4 weeks were High-Performance. It's meant to be occasional — schedule a Normal week.` });

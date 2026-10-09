@@ -1,4 +1,4 @@
-import type { Domain, HabitId, Level, Mode } from './types';
+import type { Domain, HabitId, Level, LifeProfile, Mode } from './types';
 
 export interface LevelTarget {
   /** Threshold for a successful (minimum) day. Units depend on `input`. */
@@ -9,7 +9,7 @@ export interface LevelTarget {
   perWeek: number;
 }
 
-export type HabitInput = 'hours' | 'minutes' | 'steps' | 'tri' | 'bool' | 'session';
+export type HabitInput = 'hours' | 'minutes' | 'steps' | 'tri' | 'bool' | 'session' | 'protein' | 'calories';
 
 export interface HabitSpec {
   id: HabitId;
@@ -137,14 +137,14 @@ export const HABITS: HabitSpec[] = [
     name: 'Protein target',
     domain: 'health',
     secondary: ['fitness'],
-    input: 'tri',
-    unit: '',
+    input: 'protein',
+    unit: 'g',
     why: 'Protein is the single nutrition behaviour that most affects muscle, satiety and body composition. Easy to measure, high return.',
     goalLink: 'd90-health',
-    trigger: 'A protein source planned into every meal (breakfast is the usual gap).',
-    track: 'One tap in the check-in: missed / minimum / ideal.',
-    minLabel: 'Minimum grams (set in Settings)',
-    idealLabel: 'Ideal grams',
+    trigger: 'Log it the moment you finish eating — phone out, + Food, one tap. A protein source planned into every meal (breakfast is the usual gap).',
+    track: 'Tap + Food after each meal — the total and the result are calculated for you. (Or one tap in the check-in if you didn\'t log food.)',
+    minLabel: '1.6 g/kg bodyweight',
+    idealLabel: '2.0 g/kg bodyweight',
     estMinutes: { min: 5, ideal: 10 },
     difficulty: 2,
     impact: 4,
@@ -409,6 +409,33 @@ export const HABITS: HabitSpec[] = [
       trigger: 'Plan written → one line.',
     },
   },
+  {
+    id: 'calories',
+    name: 'Calorie awareness',
+    domain: 'health',
+    secondary: ['fitness'],
+    input: 'calories',
+    unit: 'kcal',
+    why: 'Once protein is automatic, calories are the next lever for body composition. Built on the same food log, so it adds almost no effort.',
+    goalLink: 'd90-health',
+    trigger: 'Same as protein: log food straight after eating.',
+    track: 'Automatic from the food log. First 2 weeks: just log (awareness). Then a target range set from your own intake and weight trend.',
+    minLabel: 'Within ±250 kcal of target',
+    idealLabel: 'Within ±100 kcal',
+    estMinutes: { min: 2, ideal: 5 },
+    difficulty: 3,
+    impact: 4,
+    // Unlocked by protein consistency, not by level — see calorieUnlockStatus().
+    unlock: 1,
+    targets: same({ min: 250, ideal: 100, perWeek: 5 }),
+    minimumMode: null,
+    highBump: 1,
+    redesign: {
+      smaller: 'Log calories on weekdays only — weekends are awareness, not scored.',
+      environment: 'Save your regular meals as single foods so logging is one tap.',
+      trigger: 'Plate down → + Food.',
+    },
+  },
 ];
 
 export const HABIT_BY_ID = new Map(HABITS.map((h) => [h.id, h]));
@@ -442,8 +469,23 @@ export const MODE_LABELS: Record<Mode, string> = {
   high: 'High-Performance Mode',
 };
 
-export function activeHabits(level: Level, paused: HabitId[] = []): HabitSpec[] {
-  return HABITS.filter((h) => h.unlock <= level && !paused.includes(h.id));
+/** Is the habit part of the system? Calories unlock by protein consistency (profile.calorie.unlockedAt), everything else by level. */
+export function isUnlocked(spec: HabitSpec, level: Level, profile: Pick<LifeProfile, 'calorie'>, date?: string): boolean {
+  if (spec.id === 'calories') {
+    const at = profile.calorie?.unlockedAt;
+    return !!at && (!date || date >= at);
+  }
+  return spec.unlock <= level;
+}
+
+export function activeHabits(profile: Pick<LifeProfile, 'calorie' | 'level' | 'pausedHabits'>): HabitSpec[] {
+  return HABITS.filter((h) => isUnlocked(h, profile.level, profile) && !profile.pausedHabits.includes(h.id));
+}
+
+export interface TargetExtras {
+  protein?: { min: number; ideal: number };
+  /** null = calorie awareness phase (no target yet). */
+  calorieTarget?: number | null;
 }
 
 /** Targets for a habit given level and mode. `null` means not scheduled in this mode. */
@@ -454,8 +496,13 @@ export function targetFor(spec: HabitSpec, level: Level, mode: Mode): LevelTarge
   return base;
 }
 
-export function formatTarget(spec: HabitSpec, t: LevelTarget, proteinG?: { min: number; ideal: number }): { min: string; ideal: string } {
+export function formatTarget(spec: HabitSpec, t: LevelTarget, extras: TargetExtras = {}): { min: string; ideal: string } {
   switch (spec.input) {
+    case 'protein':
+      return extras.protein ? { min: `${extras.protein.min}g`, ideal: `${extras.protein.ideal}g` } : { min: spec.minLabel, ideal: spec.idealLabel };
+    case 'calories':
+      if (extras.calorieTarget == null) return { min: 'Log calories (awareness)', ideal: 'Log every meal' };
+      return { min: `${extras.calorieTarget - t.min}–${extras.calorieTarget + t.min} kcal`, ideal: `${extras.calorieTarget} ±${t.ideal}` };
     case 'hours':
       return { min: `${t.min}h`, ideal: `${t.ideal}h` };
     case 'minutes':
@@ -464,7 +511,6 @@ export function formatTarget(spec: HabitSpec, t: LevelTarget, proteinG?: { min: 
     case 'steps':
       return { min: t.min.toLocaleString(), ideal: t.ideal.toLocaleString() };
     default:
-      if (spec.id === 'protein' && proteinG) return { min: `${proteinG.min}g`, ideal: `${proteinG.ideal}g` };
       return { min: spec.minLabel, ideal: spec.idealLabel };
   }
 }

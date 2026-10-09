@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toaster';
 import { Collapsible, GoalBar, Ring, Scale5, SectionTitle } from '@/components/life/Visuals';
-import { DOMAIN_LABELS, HABITS, LEVELS, MODE_LABELS, formatTarget, frequencyLabel, targetFor } from '@/lib/life/habits';
-import { addDaysStr, evaluateWeek, strengthTrend, weekStartOf, type LifeContext } from '@/lib/life/engine';
+import { DOMAIN_LABELS, HABITS, LEVELS, MODE_LABELS, formatTarget, frequencyLabel, isUnlocked, targetFor } from '@/lib/life/habits';
+import { addDaysStr, evaluateWeek, strengthTrend, targetExtras, weekStartOf, type LifeContext } from '@/lib/life/engine';
 import { correlations, detectGaming, frictionReports, weekNarrative, weeklyInsights } from '@/lib/life/insights';
 import { recommendMode, recommendProgression } from '@/lib/life/progression';
 import type { Domain, Level, Mode, WeekPlan } from '@/lib/life/types';
@@ -261,12 +261,12 @@ function NextWeek({ ctx, reviewed, reviewedPlan, rec }: { ctx: LifeContext; revi
   });
   useEffect(() => setApplyProg(prog.status !== 'hold' && prog.status !== 'insufficient'), [prog.status]);
 
-  const proteinG = { min: ctx.profile.proteinMinG, ideal: ctx.profile.proteinIdealG };
+  const extras = targetExtras(ctx, next);
   const curLevel = ctx.profile.level;
   const curMode = ctx.planByWeek.get(reviewed)?.mode ?? 'normal';
-  const rows = HABITS.filter((h) => h.unlock <= level && !ctx.profile.pausedHabits.includes(h.id)).map((h) => {
+  const rows = HABITS.filter((h) => isUnlocked(h, level, ctx.profile, next) && !ctx.profile.pausedHabits.includes(h.id)).map((h) => {
     const t = targetFor(h, level, chosen);
-    const before = h.unlock <= curLevel ? targetFor(h, curLevel, curMode) : null;
+    const before = isUnlocked(h, curLevel, ctx.profile, reviewed) ? targetFor(h, curLevel, curMode) : null;
     const change = !t ? 'paused' : !before ? 'new' : t.perWeek > before.perWeek || t.min > before.min ? 'up' : t.perWeek < before.perWeek || t.min < before.min ? 'down' : 'same';
     return { h, t, change };
   });
@@ -378,7 +378,7 @@ function NextWeek({ ctx, reviewed, reviewedPlan, rec }: { ctx: LifeContext; revi
         </p>
         <div className="flex flex-col divide-y divide-base-800">
           {rows.map(({ h, t, change }) => {
-            const lbl = t ? formatTarget(h, t, proteinG) : null;
+            const lbl = t ? formatTarget(h, t, extras) : null;
             return (
               <div key={h.id} className="py-2 flex items-center justify-between gap-2 text-xs">
                 <span className="text-base-100 font-medium">{h.name}</span>

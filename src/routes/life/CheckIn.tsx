@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/Toaster';
 import { Chips, Collapsible, Scale5, TriPicker } from '@/components/life/Visuals';
 import { useLife } from '@/lib/life/useLife';
 import { HABIT_BY_ID, formatTarget } from '@/lib/life/habits';
-import { addDaysStr, scheduleOn } from '@/lib/life/engine';
+import { addDaysStr, scheduleOn, targetExtras } from '@/lib/life/engine';
 import type { DailyCheckin, HabitId, Hit } from '@/lib/life/types';
 
 type Form = Omit<DailyCheckin, 'id' | 'date' | 'createdAt' | 'updatedAt'> & { bodyweight: number | null };
@@ -58,7 +58,7 @@ export default function CheckIn() {
     const s = (id: HabitId) => {
       const spec = HABIT_BY_ID.get(id)!;
       const t = scheduleOn(ctx, spec, date);
-      return t ? { spec, t, label: formatTarget(spec, t, { min: ctx.profile.proteinMinG, ideal: ctx.profile.proteinIdealG }) } : null;
+      return t ? { spec, t, label: formatTarget(spec, t, targetExtras(ctx, date)) } : null;
     };
     return {
       sleep: s('sleep'),
@@ -162,8 +162,23 @@ export default function CheckIn() {
         </Q>
 
         {sched.protein && (
-          <Q title="Nutrition: protein">
-            <TriPicker value={form.habits.protein} onChange={(v) => setHit('protein', v)} minLabel={sched.protein.label.min} idealLabel={sched.protein.label.ideal} />
+          <Q title="Nutrition: protein" sub={`Min ${sched.protein.label.min} · Ideal ${sched.protein.label.ideal}`}>
+            {ctx.nutrition.get(date)?.entries ? (
+              <button onClick={() => navigate(`/food?date=${date}`)} className="w-full text-left">
+                <p className="text-sm text-accent">
+                  From food log: {ctx.nutrition.get(date)!.protein}g
+                  {ctx.nutrition.get(date)!.calories != null && ` · ${ctx.nutrition.get(date)!.calories} kcal`} — counted automatically.
+                </p>
+                <p className="text-[11px] text-base-500 mt-0.5">Tap to open the food log</p>
+              </button>
+            ) : (
+              <>
+                <TriPicker value={form.habits.protein} onChange={(v) => setHit('protein', v)} minLabel={sched.protein.label.min} idealLabel={sched.protein.label.ideal} />
+                <button onClick={() => navigate(`/food?date=${date}`)} className="text-xs text-accent mt-2">
+                  Or log food for an exact total →
+                </button>
+              </>
+            )}
           </Q>
         )}
 

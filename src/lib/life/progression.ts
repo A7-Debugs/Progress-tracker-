@@ -1,5 +1,6 @@
-import { HABITS, LEVELS } from './habits';
-import { addDaysStr, pastWeeks, weekStartOf, type LifeContext, type PeriodEval } from './engine';
+import { HABITS, HABIT_BY_ID, LEVELS } from './habits';
+import { AWARENESS_DAYS, estimateMaintenance, type MaintenanceEstimate } from './nutrition';
+import { addDaysStr, daysBetween, habitPeriod, modeOn, pastWeeks, weekStartOf, type LifeContext, type PeriodEval } from './engine';
 import type { Level, Mode, Phase, WeekPlan } from './types';
 
 export type ProgressionStatus = 'insufficient' | 'level-up' | 'hold' | 'deload' | 'stabilise' | 'rebuild' | 'drop-level';
@@ -48,6 +49,7 @@ export function levelChanges(from: Level, to: Level): string[] {
   const target = LEVELS.find((l) => l.level === to)!;
   out.push(`Level ${to} — ${target.name}: ${target.summary}`);
   for (const h of HABITS) {
+    if (h.id === 'calories') continue; // unlocked by protein consistency, not level
     if (h.unlock === to && to > from) out.push(`New habit: ${h.name} (${h.minLabel} minimum)`);
     const a = h.targets[from];
     const b = h.targets[to];
@@ -280,4 +282,63 @@ export function recommendMode(ctx: LifeContext, plan: Partial<WeekPlan> | undefi
   if (soft.length === 1) reasons.push(`Watch: ${soft[0]}.`);
   reasons.push('Standard week: Normal Mode.');
   return { mode: 'normal', reasons };
+}
+
+// ---------------------------------------------------------------------------
+// Calorie tracking unlock (earned by protein consistency, not by level)
+// ---------------------------------------------------------------------------
+
+export const CALORIE_UNLOCK = { c30: 0.85, checkpoints: 4 }; // 30-day protein ≥ 85% at today, −7, −14, −21 days
+
+export interface CalorieUnlockStatus {
+  unlocked: boolean;
+  eligible: boolean;
+  checks: { date: string; c30: number | null }[];
+  reason: string;
+}
+
+export function calorieUnlockStatus(ctx: LifeContext): CalorieUnlockStatus {
+  const protein = HABIT_BY_ID.get('protein')!;
+  const checks = Array.from({ length: CALORIE_UNLOCK.checkpoints }, (_, i) => {
+    const date = addDaysStr(ctx.today, -7 * i);
+    const start = addDaysStr(date, -29);
+    const c30 = start >= ctx.firstDate ? habitPeriod(ctx, protein, start, date).adherence : null;
+    return { date, c30 };
+  });
+  if (ctx.profile.calorie?.unlockedAt) return { unlocked: true, eligible: false, checks, reason: 'Unlocked' };
+  const passed = checks.filter((c) => c.c30 !== null && c.c30 >= CALORIE_UNLOCK.c30).length;
+  const history = daysBetween(ctx.firstDate, ctx.today) + 1;
+  if (ctx.profile.phase === 'deload' || modeOn(ctx, ctx.today) === 'minimum')
+    return { unlocked: false, eligible: false, checks, reason: 'Not during a deload or Minimum Mode week — protect the foundation first.' };
+  if (passed === checks.length)
+    return { unlocked: false, eligible: true, checks, reason: 'Protein has been ≥ 85% (30-day) for 3 straight weeks. Calorie awareness is ready.' };
+  const needDays = 30 + 7 * (CALORIE_UNLOCK.checkpoints - 1);
+  return {
+    unlocked: false,
+    eligible: false,
+    checks,
+    reason:
+      history < needDays
+        ? `Needs ${needDays} days of history (have ${history}) and 30-day protein ≥ 85% at 4 weekly checkpoints (${passed}/4 so far).`
+        : `30-day protein must be ≥ 85% at 4 weekly checkpoints in a row (${passed}/4 now).`,
+  };
+}
+
+export type CalorieStage = 'locked' | 'awareness' | 'ready-to-set' | 'target';
+
+export interface CalorieStatus {
+  stage: CalorieStage;
+  daysSinceUnlock: number;
+  estimate: MaintenanceEstimate | null;
+}
+
+export function calorieStatus(ctx: LifeContext): CalorieStatus {
+  const c = ctx.profile.calorie;
+  if (!c?.unlockedAt) return { stage: 'locked', daysSinceUnlock: 0, estimate: null };
+  const daysSinceUnlock = daysBetween(c.unlockedAt, ctx.today);
+  const winStart = addDaysStr(ctx.today, -27) > c.unlockedAt ? addDaysStr(ctx.today, -27) : c.unlockedAt;
+  const estimate = estimateMaintenance(ctx.nutrition, ctx.bodyweight, winStart, ctx.today);
+  if (c.target) return { stage: 'target', daysSinceUnlock, estimate };
+  if (daysSinceUnlock >= AWARENESS_DAYS && estimate.ok) return { stage: 'ready-to-set', daysSinceUnlock, estimate };
+  return { stage: 'awareness', daysSinceUnlock, estimate };
 }

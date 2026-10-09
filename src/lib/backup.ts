@@ -16,6 +16,8 @@ export async function exportJSON(): Promise<void> {
     weekPlans: await db.weekPlans.toArray(),
     financeSnapshots: await db.financeSnapshots.toArray(),
     lifeProfile: await db.lifeProfile.toArray(),
+    foods: await db.foods.toArray(),
+    foodLogs: await db.foodLogs.toArray(),
     // progressPhotos intentionally excluded from JSON export (binary blobs) — see exportPhotosZip-free approach below
   };
   downloadBlob(JSON.stringify(data, null, 2), `overload-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
@@ -38,7 +40,7 @@ export async function importJSON(file: File): Promise<void> {
   const data = JSON.parse(text);
   await db.transaction(
     'rw',
-    [db.exerciseDefs, db.programs, db.workoutTemplates, db.workoutExercises, db.sessions, db.setLogs, db.bodyweightLogs, db.settings, db.checkins, db.weekPlans, db.financeSnapshots, db.lifeProfile],
+    [db.exerciseDefs, db.programs, db.workoutTemplates, db.workoutExercises, db.sessions, db.setLogs, db.bodyweightLogs, db.settings, db.checkins, db.weekPlans, db.financeSnapshots, db.lifeProfile, db.foods, db.foodLogs],
     async () => {
       if (data.exerciseDefs) await db.exerciseDefs.bulkPut(data.exerciseDefs);
       if (data.programs) await db.programs.bulkPut(data.programs);
@@ -52,6 +54,8 @@ export async function importJSON(file: File): Promise<void> {
       if (data.weekPlans) await db.weekPlans.bulkPut(data.weekPlans);
       if (data.financeSnapshots) await db.financeSnapshots.bulkPut(data.financeSnapshots);
       if (data.lifeProfile) await db.lifeProfile.bulkPut(data.lifeProfile);
+      if (data.foods) await db.foods.bulkPut(data.foods);
+      if (data.foodLogs) await db.foodLogs.bulkPut(data.foodLogs);
     },
   );
 }
@@ -106,6 +110,8 @@ export async function wipeAllData(): Promise<void> {
       db.weekPlans,
       db.financeSnapshots,
       db.lifeProfile,
+      db.foods,
+      db.foodLogs,
     ],
     async () => {
       await Promise.all([
@@ -122,6 +128,8 @@ export async function wipeAllData(): Promise<void> {
         db.weekPlans.clear(),
         db.financeSnapshots.clear(),
         db.lifeProfile.clear(),
+        db.foods.clear(),
+        db.foodLogs.clear(),
       ]);
     },
   );

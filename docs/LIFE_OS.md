@@ -8,6 +8,7 @@ A habit, progression and financial-readiness system built into this app. Everyth
 |---|---|---|
 | Today | `/` | Dashboard: weekly score, rings, today's habits, the ONE priority, goal progress bars, GT3 RS readiness, trend, progression, streaks |
 | Check-in | `/checkin` | The 60-second daily log |
+| Food log | `/food` | Tap-to-add protein (and later calorie) logging |
 | Review | `/review` | Weekly (Sunday) / Monthly / Quarterly reviews, insights, correlations, friction, next-week plan |
 | Money | `/finance` | Monthly snapshots, FI progress, GT3 RS readiness |
 | Trends | `/trends` | All graphs |
@@ -26,12 +27,12 @@ Code: `src/lib/life/` (engine, habits, progression, insights, finance) and `src/
 | **Sleep 7h+** | 7h | 8h | Daily | none extra | 3/5 | 5/5 | Phone on charge outside the bedroom at a fixed time | Hours in the check-in |
 | **Train** | 30 min | Full planned workout | 3x/week | 30–75 min | 2/5 | 5/5 | Bag packed the night before, fixed slot | Automatic from the Train tab, or minutes in the check-in |
 | **Steps** | 6,000 | 10,000 | Daily | 20–60 min | 1/5 | 4/5 | 10-minute walk after lunch and dinner | Step count in the check-in |
-| **Protein target** | 140 g | 180 g | 5x/week | 5–10 min | 2/5 | 4/5 | A protein source planned into every meal | One tap: missed / min / ideal |
+| **Protein target** | 1.6 g/kg bodyweight | 2.0 g/kg | 5x/week | 5–10 min | 2/5 | 4/5 | Log it the moment you finish eating | Food log (tap to add); one-tap fallback in the check-in |
 | **Deep work / study** | 25 min | 60 min | 5x/week | 25–60 min | 3/5 | 5/5 | Same slot daily, materials left open the night before | Focused minutes in the check-in |
 | **Plan tomorrow** | Write tomorrow's top 3 | Top 3 + time-blocked calendar | 5x/week | 2–10 min | 1/5 | 4/5 | Straight after dinner / closing the laptop | One tap |
 | **Weekly money check** | Check balances + last week's spending | …and update the snapshot | 1x/week | 5–15 min | 1/5 | 4/5 | Sunday review | Toggle, or ticks itself when a snapshot is saved |
 
-Protein grams are editable in The system → settings (rule of thumb: 1.6 g/kg minimum, 2.0 g/kg ideal).
+Protein targets follow your latest weigh-in (1.6 / 2.0 g/kg, rounded to 5 g). With no weigh-in, or with auto turned off in The System → Nutrition, the manual values (default 140 / 180 g) are used.
 
 **Why these seven:** they cover every long-term goal with the least friction. Sleep multiplies everything else. Training and protein are the whole physique goal at this stage. Steps are cheap health. Deep work is the engine of earning power (ACCA, Excel, modelling, AI) and so of financial freedom. Planning takes two minutes and removes tomorrow's decisions. The money check makes finances something you look at every week. Relationships are **tracked** from day one (a toggle in the check-in, feeding the Relationships score) but only become a scheduled habit at Level 4.
 
@@ -153,3 +154,29 @@ The GT3 RS is treated as a symbol of financial independence, not a purchase targ
 | 10 | Ability to keep investing | The monthly surplus after investing covers running costs, so contributions don't change |
 
 **Readiness %** = weighted average of each condition's progress. Conditions 1, 7, 8 and 9 (the scale conditions) count double; the others count once. The verdict is "comfortable" only when all 10 are met. Price and assumptions are editable on the Money screen.
+
+---
+
+## 8. Nutrition: food log and calorie unlock
+
+**Food log (`/food`, "Log food" on Today).** Log food as you eat instead of reconstructing the day at night.
+- **My foods:** a starter list of 27 common UK foods with approximate protein and calories per serving. Edit them to match your brands, and save regular meals (e.g. "Overnight oats + whey") as one food.
+- **Tap a food to add one serving.** Tapping again adds another; the ± buttons adjust in half servings.
+- **Quick add:** type grams (and kcal) or use the portion guides: palm of meat/fish ≈ 30 g, fist of beans ≈ 10 g, glass of milk ≈ 8 g, handful of nuts ≈ 6 g.
+- **Copy yesterday** fills a new day with yesterday's items in one tap.
+- **The check-in fills itself in.** If a day has food entries, protein is graded from the total (≥ minimum = min, ≥ ideal = ideal). The manual missed / min / ideal choice only applies on days with no food logged, so days logged before this update keep their values.
+- Each entry stores the values it was logged with, so editing a food never rewrites past days.
+
+**Calorie awareness unlocks through consistency, not by level.**
+- **Unlock rule:** 30-day protein adherence ≥ 85% at 4 weekly checkpoints in a row (today, −7, −14, −21 days). It can't be unlocked during a deload or a Minimum Mode week. You confirm the unlock yourself (Today card or The System → Nutrition).
+- **Awareness phase (first 14 days):** logging calories is the habit and there's no target. Success = calories logged that day.
+- **Target:** after 14 days, with 10+ days of calories and 4+ weigh-ins spanning 10+ days, maintenance is estimated as average intake − (weight change per day × 7,700 kcal/kg). You then choose:
+  - **Cut:** maintenance − 400
+  - **Maintain:** maintenance
+  - **Lean bulk:** maintenance + 250
+- **Grading:** within ±100 kcal of target = ideal; within ±250 = success (minimum); further away = miss. Scheduled 5x/week, never required in Minimum Mode.
+- **Health score:** once unlocked, calories add a 20-weight part (the other parts are re-weighted).
+
+**New flags**
+- **Calorie totals are incomplete:** at least 20% of food entries in 3 weeks have no calories.
+- **Calories and weight disagree:** you're on target but weight moves the wrong way for your goal. This usually means food isn't being logged, or maintenance has shifted; re-estimate in The System.

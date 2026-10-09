@@ -7,7 +7,8 @@ import { Card } from '@/components/ui/Card';
 import { NoData, TrendBars, TrendLines, type SeriesPoint } from '@/components/life/Visuals';
 import { COLORS } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
-import { addDaysStr, dateRange, ds, evaluatePeriod, evaluateWeek, weekStartOf } from '@/lib/life/engine';
+import { addDaysStr, calorieTargetOn, dateRange, ds, evaluatePeriod, evaluateWeek, weekStartOf } from '@/lib/life/engine';
+import { proteinTargets } from '@/lib/life/nutrition';
 import { derive } from '@/lib/life/finance';
 
 const r1 = (x: number | null) => (x === null ? null : Math.round(x * 10) / 10);
@@ -77,7 +78,20 @@ export default function Trends() {
       };
     });
 
-    return { weeks, months, sleepDaily, bodyweight, cumulative, finance, totalDeep: cum };
+    const foodDays = dateRange(addDaysStr(ctx.today, -29), ctx.today).filter((x) => x >= ctx.firstDate);
+    const nutrition: SeriesPoint[] = foodDays.map((x) => {
+      const n = ctx.nutrition.get(x);
+      return {
+        label: format(parseISO(x), 'd MMM'),
+        protein: n?.entries ? n.protein : null,
+        min: proteinTargets(ctx.profile, ctx.bodyweight, x).min,
+        calories: n?.calories ?? null,
+        target: calorieTargetOn(ctx, x),
+      };
+    });
+    const hasCalories = nutrition.some((p) => p.calories !== null);
+
+    return { weeks, months, sleepDaily, bodyweight, cumulative, finance, nutrition, hasCalories, totalDeep: cum };
   }, [ctx]);
 
   if (!ctx || !d) return null;
@@ -131,6 +145,30 @@ export default function Trends() {
             />
           )}
         </Chart>
+
+        <Chart title="Protein" sub="Daily grams from the food log vs your minimum, last 30 days">
+          <TrendLines
+            data={d.nutrition}
+            lines={[
+              { key: 'protein', color: COLORS.accent, name: 'Protein (g)' },
+              { key: 'min', color: COLORS.warn, name: 'Minimum', dashed: true },
+            ]}
+            unit="g"
+          />
+        </Chart>
+
+        {d.hasCalories && (
+          <Chart title="Calories" sub="Daily kcal from the food log (dashed = target once set)">
+            <TrendLines
+              data={d.nutrition}
+              lines={[
+                { key: 'calories', color: COLORS.gold, name: 'Calories' },
+                { key: 'target', color: COLORS.info, name: 'Target', dashed: true },
+              ]}
+              unit=" kcal"
+            />
+          </Chart>
+        )}
 
         <Chart title="Productivity" sub="Deep-work hours per week">
           <TrendBars data={d.weeks} dataKey="deep" unit="h" color={COLORS.info} />
