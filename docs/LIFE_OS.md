@@ -26,7 +26,8 @@ Code: `src/lib/life/` (engine, habits, progression, insights, finance) and `src/
 |---|---|---|---|---|---|---|---|---|
 | **Sleep 7h+** | 7h | 8h | Daily | none extra | 3/5 | 5/5 | Phone on charge outside the bedroom at a fixed time | Hours in the check-in |
 | **Train** | 30 min | Full planned workout | 3x/week | 30–75 min | 2/5 | 5/5 | Bag packed the night before, fixed slot | Automatic from the Train tab, or minutes in the check-in |
-| **Steps** | 6,000 | 10,000 | Daily | 20–60 min | 1/5 | 4/5 | Morning walk before work (15–20 min ≈ 2,000+ steps) + a walk after lunch | Step count in the check-in |
+| **Morning light walk** | 10 min outside | 15 min | Daily | 10–15 min | 2/5 | 4/5 | Within an hour of waking: shoes by the door, out before opening email | One tap in the check-in (10 / 15 min) |
+| **Steps** | 6,000 | 10,000 | Daily | 20–60 min | 1/5 | 4/5 | 10-minute walk after lunch and dinner (the morning walk adds ~1,500) | Step count in the check-in |
 | **Protein target** | 1.6 g/kg bodyweight | 2.0 g/kg | 5x/week | 5–10 min | 2/5 | 4/5 | Log it the moment you finish eating | Food log (tap to add); one-tap fallback in the check-in |
 | **Deep work / study** | 25 min | 60 min | 5x/week | 25–60 min | 3/5 | 5/5 | Same slot daily, materials left open the night before | Focused minutes in the check-in |
 | **Plan tomorrow** | Write tomorrow's top 3 | Top 3 + time-blocked calendar | 5x/week | 2–10 min | 1/5 | 4/5 | Straight after dinner / closing the laptop | One tap |
@@ -34,7 +35,7 @@ Code: `src/lib/life/` (engine, habits, progression, insights, finance) and `src/
 
 Protein targets follow your latest weigh-in (1.6 / 2.0 g/kg, rounded to 5 g). With no weigh-in, or with auto turned off in The System → Nutrition, the manual values (default 140 / 180 g) are used.
 
-**Why these seven:** they cover every long-term goal with the least friction. Sleep multiplies everything else. Training and protein are the whole physique goal at this stage. Steps are cheap health. Deep work is the engine of earning power (ACCA, Excel, modelling, AI) and so of financial freedom. Planning takes two minutes and removes tomorrow's decisions. The money check makes finances something you look at every week. Relationships are **tracked** from day one (a toggle in the check-in, feeding the Relationships score) but only become a scheduled habit at Level 4.
+**Why these eight:** they cover every long-term goal with the least friction. Sleep multiplies everything else, and the morning light walk anchors it: daylight soon after waking sets the body clock for better sleep, energy and mood. Training and protein are the whole physique goal at this stage. Steps are cheap health. Deep work is the engine of earning power (ACCA, Excel, modelling, AI) and so of financial freedom. Planning takes two minutes and removes tomorrow's decisions. The money check makes finances something you look at every week. Relationships are **tracked** from day one (a toggle in the check-in, feeding the Relationships score) but only become a scheduled habit at Level 4.
 
 Each habit links to a 90-day objective in the goal tree. The quarterly review flags any goal that no habit serves, and any habit that serves no goal.
 
@@ -63,7 +64,7 @@ Everything else is calculated. Unlogged past days count as misses, because misse
 | Finance | 40% money-check adherence + 60% latest savings rate ÷ target |
 | Personal dev | Planning 50 + reading 20 + journal 15 + shutdown 15 (unlocked habits only) |
 | Relationships | Connection days ÷ 3 per week |
-| Recovery | 40% avg sleep ÷ 7.5h + 20% (1 − sleep SD ÷ 1.5h) + 20% energy + 20% inverted stress |
+| Recovery | 40% avg sleep ÷ 7.5h + 20% (1 − sleep SD ÷ 1.5h) + 20% energy + 20% inverted stress + 15% morning light walk (re-weighted) |
 | Consistency | 30% days logged + 70% mean habit adherence |
 
 **Weekly score** = weighted average of the areas (Health 15, Fitness 15, the rest 10 each). Needs 3 logged days. The review explains what improved or declined (±5 points), what caused it (habit drops, sleep, stress, work hours, logging gaps) and which habit had the most impact.
@@ -84,7 +85,7 @@ Everything else is calculated. Unlogged past days count as misses, because misse
 
 | Level | Name | Changes |
 |---|---|---|
-| 1 | Foundation | The 7 habits above |
+| 1 | Foundation | The 8 habits above |
 | 2 | Consistency | Train 4x/week, 30-min study minimum, 7k steps, protein 6x, **+ Read** (2 pages), **+ Vitamins** (with breakfast, 6x/week) |
 | 3 | Momentum | 45-min study minimum, 8k steps, **+ Mobility/prehab** (5 min, 3x) |
 | 4 | Expansion | 60-min study minimum, **+ Meaningful connection** (3x), **+ Screen shutdown** |

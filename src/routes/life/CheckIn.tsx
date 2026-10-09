@@ -71,6 +71,7 @@ export default function CheckIn() {
       shutdown: s('shutdown'),
       journal: s('journal'),
       mobility: s('mobility'),
+      morningWalk: s('morningWalk'),
       connect: s('connect'),
       vitamins: s('vitamins'),
       appSession: ctx.sessionMinutes.get(date) ?? null,
@@ -137,6 +138,17 @@ export default function CheckIn() {
             <Chips values={[6, 6.5, 7, 7.5, 8, 8.5]} current={form.sleepHours} onPick={(v) => set('sleepHours', v)} />
           </div>
         </Q>
+
+        {sched.morningWalk && (
+          <Q title="Morning light walk" sub={`Min ${sched.morningWalk.label.min} · Ideal ${sched.morningWalk.label.ideal}`}>
+            <Chips
+              values={[0, 5, 10, 15, 20, 30]}
+              current={form.minutes.morningWalk ?? null}
+              onPick={(v) => setForm((f) => ({ ...f, minutes: { ...f.minutes, morningWalk: v } }))}
+              suffix=" min"
+            />
+          </Q>
+        )}
 
         <Q title="Training" sub={sched.train ? `Min ${sched.train.label.min} · ${sched.train.t.perWeek}x/week` : undefined}>
           {sched.appSession ? (

@@ -13,7 +13,8 @@ export type HabitId =
   | 'shutdown'
   | 'journal'
   | 'calories'
-  | 'vitamins';
+  | 'vitamins'
+  | 'morningWalk';
 
 export type Domain =
   | 'health'
