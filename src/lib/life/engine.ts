@@ -372,8 +372,9 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
         { label: 'Steps ≥ minimum', value: adh('steps'), weight: 30 },
         { label: 'Protein target', value: adh('protein'), weight: 30 },
         { label: 'Calories', value: adh('calories'), weight: 20 * active('calories') },
+        { label: 'Vitamins', value: adh('vitamins'), weight: 10 * active('vitamins') },
       ],
-      '40% sleep + 30% steps + 30% protein adherence (+ 20% calories once unlocked), re-weighted',
+      '40% sleep + 30% steps + 30% protein adherence (+ 20% calories, + 10% vitamins once unlocked), re-weighted',
     ),
     fitness: combine(
       'fitness',

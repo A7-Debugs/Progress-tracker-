@@ -72,6 +72,7 @@ export default function CheckIn() {
       journal: s('journal'),
       mobility: s('mobility'),
       connect: s('connect'),
+      vitamins: s('vitamins'),
       appSession: ctx.sessionMinutes.get(date) ?? null,
     };
   }, [ctx, date]);
@@ -205,6 +206,9 @@ export default function CheckIn() {
         )}
 
         <Card className="p-4 flex flex-col gap-3">
+          {sched.vitamins && (
+            <Toggle label="Vitamins taken" sub="Habit · with breakfast" checked={form.habits.vitamins === 'ideal'} onChange={(v) => setBool('vitamins', v)} />
+          )}
           <Toggle label="Meaningful time with someone" sub={sched.connect ? 'Habit · 3x/week' : 'Tracked for your Relationships score'} checked={form.habits.connect === 'ideal'} onChange={(v) => setBool('connect', v)} />
           <Toggle label="Weekly money check done" sub="Once a week (auto-ticks when you update a finance snapshot)" checked={form.habits.moneyReview === 'ideal'} onChange={(v) => setBool('moneyReview', v)} />
         </Card>

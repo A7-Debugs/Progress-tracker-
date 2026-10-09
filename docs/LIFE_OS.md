@@ -26,7 +26,7 @@ Code: `src/lib/life/` (engine, habits, progression, insights, finance) and `src/
 |---|---|---|---|---|---|---|---|---|
 | **Sleep 7h+** | 7h | 8h | Daily | none extra | 3/5 | 5/5 | Phone on charge outside the bedroom at a fixed time | Hours in the check-in |
 | **Train** | 30 min | Full planned workout | 3x/week | 30–75 min | 2/5 | 5/5 | Bag packed the night before, fixed slot | Automatic from the Train tab, or minutes in the check-in |
-| **Steps** | 6,000 | 10,000 | Daily | 20–60 min | 1/5 | 4/5 | 10-minute walk after lunch and dinner | Step count in the check-in |
+| **Steps** | 6,000 | 10,000 | Daily | 20–60 min | 1/5 | 4/5 | Morning walk before work (15–20 min ≈ 2,000+ steps) + a walk after lunch | Step count in the check-in |
 | **Protein target** | 1.6 g/kg bodyweight | 2.0 g/kg | 5x/week | 5–10 min | 2/5 | 4/5 | Log it the moment you finish eating | Food log (tap to add); one-tap fallback in the check-in |
 | **Deep work / study** | 25 min | 60 min | 5x/week | 25–60 min | 3/5 | 5/5 | Same slot daily, materials left open the night before | Focused minutes in the check-in |
 | **Plan tomorrow** | Write tomorrow's top 3 | Top 3 + time-blocked calendar | 5x/week | 2–10 min | 1/5 | 4/5 | Straight after dinner / closing the laptop | One tap |
@@ -56,7 +56,7 @@ Everything else is calculated. Unlogged past days count as misses, because misse
 
 | Area | Formula |
 |---|---|
-| Health | 40% sleep adherence + 30% steps + 30% protein |
+| Health | 40% sleep adherence + 30% steps + 30% protein (+ 20% calories, + 10% vitamins once unlocked; re-weighted) |
 | Fitness | 60% training adherence + 25% share of lifts at/above the previous 28-day best e1RM + 15% mobility (once unlocked) |
 | Career | 60% deep-work day adherence + 40% planning |
 | Learning | 70% deep-work minutes vs ideal volume + 30% reading (once unlocked) |
@@ -85,7 +85,7 @@ Everything else is calculated. Unlogged past days count as misses, because misse
 | Level | Name | Changes |
 |---|---|---|
 | 1 | Foundation | The 7 habits above |
-| 2 | Consistency | Train 4x/week, 30-min study minimum, 7k steps, protein 6x, **+ Read** (2 pages) |
+| 2 | Consistency | Train 4x/week, 30-min study minimum, 7k steps, protein 6x, **+ Read** (2 pages), **+ Vitamins** (with breakfast, 6x/week) |
 | 3 | Momentum | 45-min study minimum, 8k steps, **+ Mobility/prehab** (5 min, 3x) |
 | 4 | Expansion | 60-min study minimum, **+ Meaningful connection** (3x), **+ Screen shutdown** |
 | 5 | High Performance | Train 5x, study 6x, protein daily, **+ Journal** |

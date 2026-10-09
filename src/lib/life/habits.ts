@@ -108,7 +108,7 @@ export const HABITS: HabitSpec[] = [
     unit: 'steps',
     why: 'Daily movement drives fat loss, cardiovascular health and recovery with almost no willpower cost. Office work quietly erodes it.',
     goalLink: 'd90-health',
-    trigger: '10-minute walk after lunch and after dinner.',
+    trigger: 'Morning walk before work (15–20 min ≈ 2,000+ steps), plus a 10-minute walk after lunch.',
     track: 'Copy the day\'s step count from your phone/watch into the check-in.',
     minLabel: '6,000',
     idealLabel: '10,000',
@@ -127,9 +127,9 @@ export const HABITS: HabitSpec[] = [
     minimumMode: { min: 5000, ideal: 8000, perWeek: 7 },
     highBump: 0,
     redesign: {
-      smaller: 'One 10-minute walk after lunch. Nothing else required.',
+      smaller: 'A 10-minute morning walk around the block. Nothing else required.',
       environment: 'Take calls walking; park further away; stairs by default.',
-      trigger: 'Stand up from lunch → shoes on → walk.',
+      trigger: 'Shoes by the door → out for the morning walk before opening email.',
     },
   },
   {
@@ -436,6 +436,32 @@ export const HABITS: HabitSpec[] = [
       trigger: 'Plate down → + Food.',
     },
   },
+  {
+    id: 'vitamins',
+    name: 'Vitamins',
+    domain: 'health',
+    secondary: ['recovery'],
+    input: 'bool',
+    unit: '',
+    why: 'Cheap insurance for energy, immunity and recovery (e.g. vitamin D through UK winters). Tiny effort, so it is introduced as a quick win once the foundation is automatic.',
+    goalLink: 'd90-health',
+    trigger: 'Bottle next to the kettle / coffee machine — take them with breakfast.',
+    track: 'One tap in the check-in.',
+    minLabel: 'Taken with breakfast',
+    idealLabel: 'Taken with breakfast',
+    estMinutes: { min: 1, ideal: 1 },
+    difficulty: 1,
+    impact: 2,
+    unlock: 2,
+    targets: same({ min: 1, ideal: 1, perWeek: 6 }),
+    minimumMode: null,
+    highBump: 1,
+    redesign: {
+      smaller: 'Move the bottle to wherever you already are every morning (next to the kettle or your toothbrush).',
+      environment: 'A weekly pill organiser removes the "did I take them?" question.',
+      trigger: 'Kettle on → vitamins.',
+    },
+  },
 ];
 
 export const HABIT_BY_ID = new Map(HABITS.map((h) => [h.id, h]));
@@ -444,7 +470,7 @@ export const CORE_V1: HabitId[] = ['sleep', 'train', 'steps', 'protein', 'deepWo
 
 export const LEVELS: { level: Level; name: string; summary: string; unlocks: HabitId[] }[] = [
   { level: 1, name: 'Foundation', summary: 'Seven small habits. Win by showing up, not by intensity.', unlocks: CORE_V1 },
-  { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading.', unlocks: ['read'] },
+  { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading and daily vitamins.', unlocks: ['read', 'vitamins'] },
   { level: 3, name: 'Momentum', summary: '45-minute study minimum, 8k steps, add mobility/prehab.', unlocks: ['mobility'] },
   { level: 4, name: 'Expansion', summary: 'Hour-long deep work, add relationships and an evening screen shutdown.', unlocks: ['connect', 'shutdown'] },
   { level: 5, name: 'High Performance', summary: '5 training days, 6 study days, protein daily, add journaling.', unlocks: ['journal'] },

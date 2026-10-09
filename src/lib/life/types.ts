@@ -12,7 +12,8 @@ export type HabitId =
   | 'connect'
   | 'shutdown'
   | 'journal'
-  | 'calories';
+  | 'calories'
+  | 'vitamins';
 
 export type Domain =
   | 'health'
