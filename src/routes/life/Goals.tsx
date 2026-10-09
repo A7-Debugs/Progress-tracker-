@@ -95,7 +95,7 @@ export default function Goals() {
                               <div key={h.id} className="flex items-center justify-between text-xs">
                                 <span className={active ? 'text-base-200' : 'text-base-500'}>
                                   ↳ {h.name}
-                                  {!active && ` (unlocks L${h.unlock})`}
+                                  {!active && (h.id === 'calories' ? ' (unlocks with protein consistency)' : ` (unlocks L${h.unlock})`)}
                                 </span>
                                 {active && (
                                   <span className="tabular-nums font-semibold" style={{ color: scoreColor(c30 === null ? null : c30 * 100) }}>

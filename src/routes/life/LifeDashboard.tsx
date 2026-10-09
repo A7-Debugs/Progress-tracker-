@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { AlertTriangle, ArrowUpRight, CalendarCheck, ChevronRight, ClipboardCheck, Flame, Gauge, Layers, LineChart, Target, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, CalendarCheck, ChevronRight, ClipboardCheck, Flame, Gauge, Layers, LineChart, Target, TrendingUp, Utensils, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -9,10 +9,11 @@ import { GoalBar, HitDot, Ring, SectionTitle, TrendBars } from '@/components/lif
 import { COLORS, scoreColor } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
 import { LEVELS, MODE_LABELS, formatTarget, frequencyLabel } from '@/lib/life/habits';
-import { addDaysStr, evaluateWeek, habitStreaks, modeOn, pastWeeks, weekStartOf } from '@/lib/life/engine';
+import { addDaysStr, evaluateWeek, habitStreaks, modeOn, pastWeeks, targetExtras, weekStartOf } from '@/lib/life/engine';
+import { db } from '@/lib/db';
 import { goalProgress, todayHabits } from '@/lib/life/summary';
 import { detectGaming, weeklyInsights } from '@/lib/life/insights';
-import { recommendProgression } from '@/lib/life/progression';
+import { calorieStatus, calorieUnlockStatus, recommendProgression } from '@/lib/life/progression';
 import { gt3rsReadiness } from '@/lib/life/finance';
 
 export default function LifeDashboard() {
@@ -43,6 +44,8 @@ export default function LifeDashboard() {
       gt: gt3rsReadiness(ctx.profile, ctx.finance),
       streaks: todayHabits(ctx).map((t) => ({ spec: t.spec, s: habitStreaks(ctx, t.spec) })),
       checkedIn: ctx.byDate.has(ctx.today),
+      calUnlock: calorieUnlockStatus(ctx),
+      calStatus: calorieStatus(ctx),
       yesterdayMissing: !ctx.byDate.has(addDaysStr(ctx.today, -1)) && addDaysStr(ctx.today, -1) >= ctx.profile.startDate,
     };
   }, [ctx]);
@@ -54,7 +57,13 @@ export default function LifeDashboard() {
   const dailyToday = data.today.filter((t) => !t.week);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const proteinG = { min: profile.proteinMinG, ideal: profile.proteinIdealG };
+  const extras = targetExtras(ctx, ctx.today);
+  const nutToday = ctx.nutrition.get(ctx.today);
+  const proteinNow = nutToday?.protein ?? 0;
+
+  async function unlockCalories() {
+    await db.lifeProfile.update('life', { calorie: { unlockedAt: ctx!.today, goal: null, maintenance: null, target: null, targetSetAt: null } });
+  }
 
   return (
     <div className="animate-fade-in">
@@ -112,6 +121,12 @@ export default function LifeDashboard() {
             <ClipboardCheck size={16} /> Edit today's check-in
           </Button>
         )}
+        <Button variant="secondary" onClick={() => navigate('/food')} className="w-full">
+          <Utensils size={16} />
+          {nutToday?.calories != null
+            ? `Food · ${proteinNow}/${extras.protein!.min}g · ${nutToday.calories.toLocaleString()} kcal`
+            : `Log food · ${proteinNow}/${extras.protein!.min}g protein`}
+        </Button>
         {data.yesterdayMissing && (
           <button onClick={() => navigate(`/checkin?date=${addDaysStr(ctx.today, -1)}`)} className="text-xs text-warn text-left -mt-1">
             Yesterday isn't logged yet — tap to fill it in (missed days are data, not failure).
@@ -132,9 +147,16 @@ export default function LifeDashboard() {
         </SectionTitle>
         <Card className="divide-y divide-base-800">
           {data.today.map(({ spec, target, hit, week }) => {
-            const t = formatTarget(spec, target, proteinG);
+            const t = formatTarget(spec, target, extras);
+            const food = spec.id === 'protein' || spec.id === 'calories';
+            const right =
+              spec.id === 'protein' && nutToday
+                ? `${proteinNow}/${extras.protein!.min}g`
+                : spec.id === 'calories' && nutToday?.calories != null
+                  ? `${nutToday.calories} kcal`
+                  : null;
             return (
-              <button key={spec.id} onClick={() => navigate('/checkin')} className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-base-850">
+              <button key={spec.id} onClick={() => navigate(food ? '/food' : '/checkin')} className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-base-850">
                 <HitDot hit={hit} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-base-50 truncate">{spec.name}</p>
@@ -143,12 +165,35 @@ export default function LifeDashboard() {
                   </p>
                 </div>
                 <span className="text-xs text-base-500 shrink-0 tabular-nums">
-                  {week ? `${week.done}/${week.of} wk` : hit === 'ideal' ? 'Ideal' : hit === 'min' ? 'Min ✓' : frequencyLabel(target.perWeek)}
+                  {right ?? (week ? `${week.done}/${week.of} wk` : hit === 'ideal' ? 'Ideal' : hit === 'min' ? 'Min ✓' : frequencyLabel(target.perWeek))}
                 </span>
               </button>
             );
           })}
         </Card>
+
+        {/* Calorie unlock / target prompts */}
+        {data.calUnlock.eligible && (
+          <Card className="p-4 border-info/40">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-info">Unlocked by consistency</p>
+            <p className="text-sm font-semibold text-base-50 mt-1">Calorie awareness is ready</p>
+            <p className="text-xs text-base-400 mt-1 leading-relaxed">
+              {data.calUnlock.reason} For the first 2 weeks you only log, with no target, using the same food log. Then a target is set from your own intake and weight trend.
+            </p>
+            <div className="flex gap-2 mt-3">
+              <Button size="sm" onClick={unlockCalories}>Unlock calories</Button>
+              <Button size="sm" variant="ghost" onClick={() => navigate('/system')}>Not yet</Button>
+            </div>
+          </Card>
+        )}
+        {data.calStatus.stage === 'ready-to-set' && (
+          <Card className="p-4 border-info/40 cursor-pointer" onClick={() => navigate('/system')}>
+            <p className="text-sm font-semibold text-base-50">Set your calorie target</p>
+            <p className="text-xs text-base-400 mt-1">
+              Awareness phase complete. Estimated maintenance: ~{data.calStatus.estimate!.maintenance} kcal/day. Choose cut, maintain or lean bulk →
+            </p>
+          </Card>
+        )}
 
         {/* Anti-gaming flags */}
         {data.flags.length > 0 && (

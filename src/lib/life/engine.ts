@@ -1,8 +1,9 @@
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns';
 import { estimate1RM } from '@/lib/calculations';
 import type { BodyweightLog, SetLog } from '@/lib/types';
-import { HABITS, HABIT_BY_ID, targetFor, type HabitSpec, type LevelTarget } from './habits';
-import type { DailyCheckin, Domain, FinanceSnapshot, HabitId, Hit, LifeProfile, Level, Mode, WeekPlan } from './types';
+import { HABITS, HABIT_BY_ID, isUnlocked, targetFor, type HabitSpec, type LevelTarget, type TargetExtras } from './habits';
+import { gradeCalories, nutritionByDate, proteinTargets, type DayNutrition } from './nutrition';
+import type { DailyCheckin, Domain, FinanceSnapshot, FoodLog, HabitId, Hit, LifeProfile, Level, Mode, WeekPlan } from './types';
 
 // ---------------------------------------------------------------------------
 // Dates
@@ -31,6 +32,7 @@ export interface RawLifeData {
   bodyweight: BodyweightLog[];
   weekPlans: WeekPlan[];
   finance: FinanceSnapshot[];
+  foodLogs: FoodLog[];
   today: string;
 }
 
@@ -39,6 +41,7 @@ export interface LifeContext extends RawLifeData {
   sessionMinutes: Map<string, number[]>;
   financeUpdated: Set<string>;
   planByWeek: Map<string, WeekPlan>;
+  nutrition: Map<string, DayNutrition>;
   /** First date with any data (check-in or completed session), or the profile start date. */
   firstDate: string;
 }
@@ -54,7 +57,8 @@ export function buildContext(raw: RawLifeData): LifeContext {
   }
   const financeUpdated = new Set(raw.finance.map((f) => ds(new Date(f.updatedAt))));
   const planByWeek = new Map(raw.weekPlans.map((p) => [p.weekStart, p]));
-  const dataDates = [...byDate.keys(), ...sessionMinutes.keys()].sort();
+  const nutrition = nutritionByDate(raw.foodLogs);
+  const dataDates = [...byDate.keys(), ...sessionMinutes.keys(), ...nutrition.keys()].sort();
   const firstDate = dataDates[0] && dataDates[0] < raw.profile.startDate ? dataDates[0] : raw.profile.startDate;
   return {
     ...raw,
@@ -63,6 +67,7 @@ export function buildContext(raw: RawLifeData): LifeContext {
     sessionMinutes,
     financeUpdated,
     planByWeek,
+    nutrition,
     firstDate,
   };
 }
@@ -80,7 +85,7 @@ export function modeOn(ctx: LifeContext, date: string): Mode {
 /** Is the habit part of the active system on this date, and what are its targets? */
 export function scheduleOn(ctx: LifeContext, spec: HabitSpec, date: string): LevelTarget | null {
   const level = levelOn(ctx, date);
-  if (spec.unlock > level) return null;
+  if (!isUnlocked(spec, level, ctx.profile, date)) return null;
   if (ctx.profile.pausedHabits.includes(spec.id)) return null;
   return targetFor(spec, level, modeOn(ctx, date));
 }
@@ -115,6 +120,22 @@ export function dayHit(ctx: LifeContext, spec: HabitSpec, date: string): Hit | n
     }
     case 'deepWork':
       return c ? grade(c.deepWorkMinutes ?? 0, t) : null;
+    case 'protein': {
+      const n = ctx.nutrition.get(date);
+      if (n && n.entries > 0) {
+        const p = proteinTargets(ctx.profile, ctx.bodyweight, date);
+        return grade(n.protein, { min: p.min, ideal: p.ideal, perWeek: 7 });
+      }
+      return c ? (c.habits.protein ?? 'miss') : null;
+    }
+    case 'calories': {
+      const n = ctx.nutrition.get(date);
+      const target = calorieTargetOn(ctx, date);
+      const kcal = n?.calories ?? null;
+      if (target === null) return kcal !== null && kcal > 0 ? 'ideal' : c || n ? 'miss' : null; // awareness: logging = success
+      if (kcal === null) return c || n ? 'miss' : null;
+      return gradeCalories(kcal, target);
+    }
     case 'mobility':
       return c ? grade(c.minutes?.mobility ?? 0, t) : null;
     case 'moneyReview':
@@ -125,13 +146,26 @@ export function dayHit(ctx: LifeContext, spec: HabitSpec, date: string): Hit | n
   }
 }
 
+/** Calorie target active on a date, or null during the awareness phase. */
+export function calorieTargetOn(ctx: LifeContext, date: string): number | null {
+  const c = ctx.profile.calorie;
+  if (!c?.target || !c.targetSetAt || date < c.targetSetAt) return null;
+  return c.target;
+}
+
+/** Protein/calorie numbers needed to label targets on a given day. */
+export function targetExtras(ctx: LifeContext, date: string): TargetExtras {
+  const p = proteinTargets(ctx.profile, ctx.bodyweight, date);
+  return { protein: { min: p.min, ideal: p.ideal }, calorieTarget: calorieTargetOn(ctx, date) };
+}
+
 export const isSuccess = (h: Hit | null) => h === 'min' || h === 'ideal';
 
 /** Days in [start, end] that have happened. Today only counts once something is logged for it. */
 export function elapsedDays(ctx: LifeContext, start: string, end: string): string[] {
   const last = end < ctx.today ? end : ctx.today;
   const days = dateRange(start < ctx.firstDate ? ctx.firstDate : start, last);
-  if (days.length && days[days.length - 1] === ctx.today && !ctx.byDate.has(ctx.today) && !ctx.sessionMinutes.has(ctx.today)) {
+  if (days.length && days[days.length - 1] === ctx.today && !ctx.byDate.has(ctx.today) && !ctx.sessionMinutes.has(ctx.today) && !ctx.nutrition.has(ctx.today)) {
     days.pop();
   }
   return days;
@@ -337,8 +371,9 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
         { label: 'Sleep ≥ minimum', value: adh('sleep'), weight: 40 },
         { label: 'Steps ≥ minimum', value: adh('steps'), weight: 30 },
         { label: 'Protein target', value: adh('protein'), weight: 30 },
+        { label: 'Calories', value: adh('calories'), weight: 20 * active('calories') },
       ],
-      '40% sleep adherence + 30% steps adherence + 30% protein adherence',
+      '40% sleep + 30% steps + 30% protein adherence (+ 20% calories once unlocked), re-weighted',
     ),
     fitness: combine(
       'fitness',
