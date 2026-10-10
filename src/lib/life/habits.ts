@@ -67,6 +67,32 @@ export const HABITS: HabitSpec[] = [
     },
   },
   {
+    id: 'morningWalk',
+    name: 'Morning light walk',
+    domain: 'recovery',
+    secondary: ['health'],
+    input: 'minutes',
+    unit: 'min',
+    why: 'Daylight soon after waking sets your body clock: easier sleep at night, more energy and better mood in the morning. Outdoor light is far brighter than indoor light, even on an overcast day. It also adds ~1,500 steps.',
+    goalLink: 'd90-health',
+    trigger: 'Within an hour of waking: shoes by the door, out before opening email. Outside, no sunglasses; cloudy days still count.',
+    track: 'One tap in the check-in: 10 or 15 minutes.',
+    minLabel: '10 minutes outside',
+    idealLabel: '15 minutes outside',
+    estMinutes: { min: 10, ideal: 15 },
+    difficulty: 2,
+    impact: 4,
+    unlock: 1,
+    targets: same({ min: 10, ideal: 15, perWeek: 7 }),
+    minimumMode: { min: 5, ideal: 10, perWeek: 5 },
+    highBump: 0,
+    redesign: {
+      smaller: 'Five minutes outside with your morning coffee — the light is what matters, not the distance.',
+      environment: 'Shoes and jacket by the door the night before; a podcast queued up.',
+      trigger: 'Wake → glass of water → out the door.',
+    },
+  },
+  {
     id: 'train',
     name: 'Train',
     domain: 'fitness',
@@ -108,7 +134,7 @@ export const HABITS: HabitSpec[] = [
     unit: 'steps',
     why: 'Daily movement drives fat loss, cardiovascular health and recovery with almost no willpower cost. Office work quietly erodes it.',
     goalLink: 'd90-health',
-    trigger: 'Morning walk before work (15–20 min ≈ 2,000+ steps), plus a 10-minute walk after lunch.',
+    trigger: '10-minute walk after lunch and after dinner (your morning light walk adds ~1,500 more).',
     track: 'Copy the day\'s step count from your phone/watch into the check-in.',
     minLabel: '6,000',
     idealLabel: '10,000',
@@ -127,9 +153,9 @@ export const HABITS: HabitSpec[] = [
     minimumMode: { min: 5000, ideal: 8000, perWeek: 7 },
     highBump: 0,
     redesign: {
-      smaller: 'A 10-minute morning walk around the block. Nothing else required.',
+      smaller: 'One 10-minute walk after lunch. Nothing else required.',
       environment: 'Take calls walking; park further away; stairs by default.',
-      trigger: 'Shoes by the door → out for the morning walk before opening email.',
+      trigger: 'Stand up from lunch → shoes on → walk.',
     },
   },
   {
@@ -466,10 +492,10 @@ export const HABITS: HabitSpec[] = [
 
 export const HABIT_BY_ID = new Map(HABITS.map((h) => [h.id, h]));
 
-export const CORE_V1: HabitId[] = ['sleep', 'train', 'steps', 'protein', 'deepWork', 'plan', 'moneyReview'];
+export const CORE_V1: HabitId[] = ['sleep', 'morningWalk', 'train', 'steps', 'protein', 'deepWork', 'plan', 'moneyReview'];
 
 export const LEVELS: { level: Level; name: string; summary: string; unlocks: HabitId[] }[] = [
-  { level: 1, name: 'Foundation', summary: 'Seven small habits. Win by showing up, not by intensity.', unlocks: CORE_V1 },
+  { level: 1, name: 'Foundation', summary: 'Eight small habits. Win by showing up, not by intensity.', unlocks: CORE_V1 },
   { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading and daily vitamins.', unlocks: ['read', 'vitamins'] },
   { level: 3, name: 'Momentum', summary: '45-minute study minimum, 8k steps, add mobility/prehab.', unlocks: ['mobility'] },
   { level: 4, name: 'Expansion', summary: 'Hour-long deep work, add relationships and an evening screen shutdown.', unlocks: ['connect', 'shutdown'] },
