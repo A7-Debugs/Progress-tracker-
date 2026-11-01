@@ -72,6 +72,8 @@ export interface WeekPlan {
   reflectionWorked: string;
   reflectionDidnt: string;
   reflectionChange: string;
+  /** Set when the Sunday review for this week was saved. */
+  reviewedAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -85,6 +87,7 @@ export interface FinanceSnapshot {
   essentialSpending: number | null; // rent/mortgage, bills, food, transport
   housingCost: number | null; // rent or mortgage payment
   invested: number | null; // contributions to investments/pension this month
+  propertyContribution?: number | null; // mortgage overpayments / deposit saving / BTL costs this month
   cash: number | null; // current account + general savings
   emergencyFund: number | null; // ring-fenced
   carFund: number | null; // ring-fenced GT3 RS fund
@@ -137,12 +140,33 @@ export interface CalorieSettings {
   targetSetAt: string | null;
 }
 
+export type GoalMetricKey =
+  | 'weeklyReviews'
+  | 'qualifyingWeeks'
+  | 'trainingSessions'
+  | 'deepWorkHours'
+  | 'snapshots'
+  | 'savingsRateMonths'
+  | 'proteinDays'
+  | 'connectDays'
+  | 'fiProgress';
+
+/** Optional measurable tracker on a goal, so the app can check whether you are on pace. */
+export interface GoalMetric {
+  key: GoalMetricKey;
+  target: number;
+  start: string;
+  deadline: string;
+}
+
 export interface GoalNode {
   id: string;
   parentId: string | null;
   tier: GoalTier;
   title: string;
   domain: Domain | null;
+  /** undefined = use the built-in default for this goal (if any); null = no tracker. */
+  metric?: GoalMetric | null;
 }
 
 export type GoalTier = 'vision' | 'y10' | 'y5' | 'y1' | 'd90' | 'month' | 'week';

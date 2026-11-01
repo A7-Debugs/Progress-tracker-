@@ -5,6 +5,8 @@ import { ToastProvider } from '@/components/ui/Toaster';
 import { seedIfEmpty } from '@/lib/seed';
 import { ensureLifeProfile } from '@/lib/life/defaults';
 import { ensureStarterFoods } from '@/lib/life/nutrition';
+import { runStartupRepairs } from '@/lib/cleanup';
+import { useReminderScheduler } from '@/lib/reminders';
 
 import Today from '@/routes/Today';
 import SessionLog from '@/routes/SessionLog';
@@ -30,12 +32,14 @@ import Finance from '@/routes/life/Finance';
 import Goals from '@/routes/life/Goals';
 import SystemPage from '@/routes/life/SystemPage';
 import FoodLogPage from '@/routes/life/FoodLog';
+import Cleanup from '@/routes/Cleanup';
 
 export default function App() {
   const [ready, setReady] = useState(false);
+  useReminderScheduler();
 
   useEffect(() => {
-    Promise.all([seedIfEmpty(), ensureLifeProfile().then(ensureStarterFoods)]).finally(() => setReady(true));
+    Promise.all([seedIfEmpty().then(runStartupRepairs), ensureLifeProfile().then(ensureStarterFoods)]).finally(() => setReady(true));
   }, []);
 
   if (!ready) {
@@ -58,6 +62,7 @@ export default function App() {
             <Route path="/finance" element={<Finance />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/system" element={<SystemPage />} />
+            <Route path="/cleanup" element={<Cleanup />} />
             <Route path="/programs" element={<Programs />} />
             <Route path="/programs/:programId" element={<ProgramDetail />} />
             <Route path="/exercises" element={<Exercises />} />

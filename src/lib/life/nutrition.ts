@@ -59,7 +59,8 @@ export async function ensureStarterFoods(): Promise<void> {
 // Protein targets
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_PER_KG = { min: 1.6, ideal: 2.0 };
+// 1.8 g/kg ≈ 140 g at ~78 kg: plenty for building muscle. Ideal is a stretch, not the bar for success.
+export const DEFAULT_PER_KG = { min: 1.8, ideal: 2.0 };
 const round5 = (x: number) => Math.round(x / 5) * 5;
 
 /** Latest weigh-in on or before `date` (logs sorted by date ascending). */
@@ -146,17 +147,26 @@ export interface MaintenanceEstimate {
   kgPerWeek: number | null;
   days: number;
   weighIns: number;
+  /** Days excluded as probably incomplete (< 50% of your typical logged intake). */
+  partialDays: number;
 }
 
 /**
- * Maintenance ≈ average logged intake − (weight change per day × 7,700 kcal).
- * Needs ≥10 days with calories and ≥4 weigh-ins spanning ≥10 days in the window.
+ * Daily energy expenditure ≈ average logged intake − (weight trend per day × 7,700 kcal/kg), the approach
+ * used by adaptive apps like MacroFactor. The weight trend is a least-squares line through the window's
+ * weigh-ins (no smoothing lag). Days logged at under half your typical intake are treated as partial and
+ * left out, so forgotten snacks don't drag the estimate down.
+ * Needs ≥10 complete calorie days and ≥4 weigh-ins spanning ≥10 days in the window.
  */
 export function estimateMaintenance(nut: Map<string, DayNutrition>, bw: BodyweightLog[], start: string, end: string): MaintenanceEstimate {
-  const intake = [...nut.entries()].filter(([d, n]) => d >= start && d <= end && n.calories !== null && n.calories > 0).map(([, n]) => n.calories!);
+  const all = [...nut.entries()].filter(([d, n]) => d >= start && d <= end && n.calories !== null && n.calories > 0).map(([, n]) => n.calories!);
+  const sorted = [...all].sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  const intake = all.filter((k) => k >= median * 0.5);
+  const partialDays = all.length - intake.length;
   const weights = bw.filter((b) => b.date >= start && b.date <= end && b.weight !== null);
-  const base = { maintenance: null, avgIntake: null, kgPerWeek: null, days: intake.length, weighIns: weights.length };
-  if (intake.length < 10) return { ...base, ok: false, reason: `Needs 10 days with calories logged (have ${intake.length}).` };
+  const base = { maintenance: null, avgIntake: null, kgPerWeek: null, days: intake.length, weighIns: weights.length, partialDays };
+  if (intake.length < 10) return { ...base, ok: false, reason: `Needs 10 complete days with calories logged (have ${intake.length}${partialDays ? `, plus ${partialDays} partial` : ''}).` };
   const avgIntake = intake.reduce((a, b) => a + b, 0) / intake.length;
   const t0 = weights.length ? new Date(weights[0].date).getTime() : 0;
   const xs = weights.map((w) => (new Date(w.date).getTime() - t0) / 86400000);
@@ -175,4 +185,22 @@ export function estimateMaintenance(nut: Map<string, DayNutrition>, bw: Bodyweig
   const slope = den ? num / den : 0; // kg per day
   const maintenance = Math.round((avgIntake - slope * KCAL_PER_KG) / 10) * 10;
   return { ...base, ok: true, reason: '', maintenance, avgIntake: Math.round(avgIntake), kgPerWeek: Math.round(slope * 7 * 100) / 100 };
+}
+
+export const EXPENDITURE_WINDOW = 28;
+
+const shift = (date: string, n: number) => {
+  const d = new Date(date + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Rolling 28-day expenditure estimate for each given day (null where data is insufficient). */
+export function expenditureSeries(nut: Map<string, DayNutrition>, bw: BodyweightLog[], days: string[]): (number | null)[] {
+  return days.map((d) => estimateMaintenance(nut, bw, shift(d, -(EXPENDITURE_WINDOW - 1)), d).maintenance);
+}
+
+/** Latest expenditure estimate (works whether or not calorie tracking is unlocked). */
+export function currentExpenditure(nut: Map<string, DayNutrition>, bw: BodyweightLog[], today: string): MaintenanceEstimate {
+  return estimateMaintenance(nut, bw, shift(today, -(EXPENDITURE_WINDOW - 1)), today);
 }

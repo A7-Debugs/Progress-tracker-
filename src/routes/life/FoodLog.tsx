@@ -15,9 +15,10 @@ import { Ring, SectionTitle } from '@/components/life/Visuals';
 import { COLORS } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
 import { addDaysStr, calorieTargetOn } from '@/lib/life/engine';
-import { CALORIE_BANDS, PORTION_GUIDES, proteinTargets } from '@/lib/life/nutrition';
+import { CALORIE_BANDS, PORTION_GUIDES, currentExpenditure, proteinTargets } from '@/lib/life/nutrition';
 import type { FoodItem, FoodLog } from '@/lib/life/types';
 import { cn } from '@/lib/cn';
+import { syncCheckin } from '@/lib/life/sync';
 
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
@@ -28,6 +29,7 @@ export default function FoodLogPage() {
   const date = params.get('date') ?? ctx?.today ?? '';
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<FoodItem | null>(null);
+  const [editingEntry, setEditingEntry] = useState<FoodLog | null>(null);
   const [quick, setQuick] = useState({ protein: '', calories: '', name: '' });
 
   const foods = useLiveQuery(() => db.foods.filter((f) => !f.archived).toArray(), []);
@@ -53,7 +55,10 @@ export default function FoodLogPage() {
   const missingCal = logs.length - withCal.length;
   const calUnlocked = !!ctx.profile.calorie?.unlockedAt;
   const calTarget = calorieTargetOn(ctx, date);
-  const status = protein >= targets.ideal ? 'Ideal ✓' : protein >= targets.min ? 'Minimum ✓' : `${targets.min - protein}g to minimum`;
+  const burn = currentExpenditure(ctx.nutrition, ctx.bodyweight, ctx.today);
+  // The minimum is the real target (a success); the ideal is a stretch, so the ring fills at the minimum.
+  const status = protein >= targets.ideal ? 'Stretch hit ✓' : protein >= targets.min ? 'Target hit ✓' : `${targets.min - protein}g to target`;
+  const perKg = ctx.profile.proteinPerKg ?? { min: 1.8, ideal: 2.0 };
   const isToday = date === ctx.today;
 
   const go = (n: number) => {
@@ -67,14 +72,18 @@ export default function FoodLogPage() {
     else
       await db.foodLogs.add({ id: newId(), date, foodId: f.id, name: f.name, servings: 1, protein: f.protein, calories: f.calories, createdAt: Date.now() });
     await db.foods.update(f.id, { useCount: f.useCount + 1, lastUsedAt: Date.now() });
+    await syncCheckin(date);
     toast(`+${f.protein}g · ${f.name}`);
   }
 
   async function setServings(l: FoodLog, servings: number) {
-    if (servings <= 0) return db.foodLogs.delete(l.id);
-    const per = l.protein / l.servings;
-    const perCal = l.calories === null ? null : l.calories / l.servings;
-    await db.foodLogs.update(l.id, { servings, protein: r1(per * servings), calories: perCal === null ? null : Math.round(perCal * servings) });
+    if (servings <= 0) await db.foodLogs.delete(l.id);
+    else {
+      const per = l.protein / l.servings;
+      const perCal = l.calories === null ? null : l.calories / l.servings;
+      await db.foodLogs.update(l.id, { servings, protein: r1(per * servings), calories: perCal === null ? null : Math.round(perCal * servings) });
+    }
+    await syncCheckin(date);
   }
 
   async function quickAdd() {
@@ -91,6 +100,7 @@ export default function FoodLogPage() {
       createdAt: Date.now(),
     });
     setQuick({ protein: '', calories: '', name: '' });
+    await syncCheckin(date);
     toast(`+${p || 0}g added`);
   }
 
@@ -98,6 +108,7 @@ export default function FoodLogPage() {
     if (!yesterdayLogs?.length) return;
     const now = Date.now();
     await db.foodLogs.bulkAdd(yesterdayLogs.map((l, i) => ({ ...l, id: newId(), date, createdAt: now + i })));
+    await syncCheckin(date);
     toast(`Copied ${yesterdayLogs.length} items from yesterday`);
   }
 
@@ -118,7 +129,7 @@ export default function FoodLogPage() {
         {/* Totals */}
         <Card className="p-4">
           <div className="flex items-center gap-4">
-            <Ring value={protein / targets.ideal} size={96} stroke={9} color={protein >= targets.min ? COLORS.accent : COLORS.warn}>
+            <Ring value={protein / targets.min} size={96} stroke={9} color={protein >= targets.min ? COLORS.accent : COLORS.warn}>
               <div className="text-center">
                 <p className="text-2xl font-bold text-base-50 tabular-nums leading-none">{protein}g</p>
                 <p className="text-[10px] text-base-400 mt-1">protein</p>
@@ -127,10 +138,10 @@ export default function FoodLogPage() {
             <div className="min-w-0 flex-1">
               <p className={cn('text-sm font-semibold', protein >= targets.min ? 'text-accent' : 'text-base-50')}>{status}</p>
               <p className="text-xs text-base-400 mt-0.5">
-                Min {targets.min}g · Ideal {targets.ideal}g
+                Target {targets.min}g · stretch {targets.ideal}g
               </p>
               <p className="text-[11px] text-base-500 mt-0.5">
-                {targets.source === 'bodyweight' ? `From ${targets.weight}kg × 1.6 / 2.0 g/kg` : 'Manual targets (The System → settings)'}
+                {targets.source === 'bodyweight' ? `From ${targets.weight}kg × ${perKg.min} / ${perKg.ideal} g/kg` : 'Manual targets (The System → Nutrition)'}
               </p>
               {(calUnlocked || calories !== null) && (
                 <p className="text-xs text-base-200 mt-2">
@@ -140,6 +151,11 @@ export default function FoodLogPage() {
                   {missingCal > 0 && <span className="block text-[11px] text-warn">{missingCal} item{missingCal === 1 ? '' : 's'} without calories</span>}
                 </p>
               )}
+              <p className="text-[11px] text-base-500 mt-1">
+                {burn.ok
+                  ? `Estimated burn ≈ ${burn.maintenance!.toLocaleString()} kcal/day (28-day intake ${burn.avgIntake!.toLocaleString()}, weight ${burn.kgPerWeek! > 0 ? '+' : ''}${burn.kgPerWeek} kg/wk${burn.partialDays ? `, ${burn.partialDays} partial days ignored` : ''})`
+                  : `Burn estimate: ${burn.reason}`}
+              </p>
             </div>
           </div>
         </Card>
@@ -149,12 +165,14 @@ export default function FoodLogPage() {
           <Card className="divide-y divide-base-800">
             {logs.map((l) => (
               <div key={l.id} className="flex items-center gap-2 px-4 py-2.5">
-                <div className="min-w-0 flex-1">
+                <button className="min-w-0 flex-1 text-left" onClick={() => setEditingEntry(l)}>
                   <p className="text-sm font-medium text-base-50 truncate">{l.name}</p>
                   <p className="text-xs text-base-400">
-                    {r1(l.protein)}g protein{l.calories !== null && ` · ${l.calories} kcal`}
+                    {r1(l.protein)}g protein
+                    {l.calories !== null ? ` · ${l.calories} kcal` : <span className="text-warn"> · no kcal — tap to add</span>}
+                    {l.foodId === null && l.calories !== null && <span className="text-base-500"> · not saved as a food</span>}
                   </p>
-                </div>
+                </button>
                 <div className="flex items-center gap-1 shrink-0">
                   <IconBtn label="Less" onClick={() => setServings(l, r1(l.servings - 0.5))}>
                     {l.servings <= 0.5 ? <Trash2 size={14} /> : <Minus size={14} />}
@@ -217,6 +235,7 @@ export default function FoodLogPage() {
       </div>
 
       {editing && <FoodDialog food={editing} onClose={() => setEditing(null)} />}
+      {editingEntry && <EntryDialog entry={editingEntry} foods={foods} onClose={() => setEditingEntry(null)} />}
     </div>
   );
 }
@@ -314,5 +333,94 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-base-400">{label}</label>
       {children}
     </div>
+  );
+}
+
+/** Fix an entry: add missing calories, link it to a saved food, or save it as a new food. */
+function EntryDialog({ entry, foods, onClose }: { entry: FoodLog; foods: FoodItem[]; onClose: () => void }) {
+  const toast = useToast();
+  const [e, setE] = useState({ name: entry.name, protein: String(r1(entry.protein)), calories: entry.calories === null ? '' : String(entry.calories) });
+  const [q, setQ] = useState('');
+  const matches = q.trim() ? foods.filter((f) => f.name.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 6) : [];
+
+  async function done(msg: string) {
+    await syncCheckin(entry.date);
+    toast(msg);
+    onClose();
+  }
+  async function save() {
+    await db.foodLogs.update(entry.id, { name: e.name.trim() || entry.name, protein: Number(e.protein) || 0, calories: e.calories === '' ? null : Number(e.calories) });
+    await done('Entry updated');
+  }
+  async function link(f: FoodItem) {
+    await db.foodLogs.update(entry.id, {
+      foodId: f.id,
+      name: f.name,
+      protein: r1(f.protein * entry.servings),
+      calories: f.calories === null ? null : Math.round(f.calories * entry.servings),
+    });
+    await db.foods.update(f.id, { useCount: f.useCount + 1, lastUsedAt: Date.now() });
+    await done(`Linked to ${f.name}`);
+  }
+  async function saveAsFood() {
+    const per = (x: number) => r1(x / entry.servings);
+    const id = newId();
+    await db.foods.add({
+      id,
+      name: e.name.trim() || entry.name,
+      serving: '1 serving',
+      protein: per(Number(e.protein) || 0),
+      calories: e.calories === '' ? null : Math.round(Number(e.calories) / entry.servings),
+      archived: false,
+      useCount: 1,
+      lastUsedAt: Date.now(),
+      createdAt: Date.now(),
+    });
+    await db.foodLogs.update(entry.id, { foodId: id, name: e.name.trim() || entry.name, protein: Number(e.protein) || 0, calories: e.calories === '' ? null : Number(e.calories) });
+    await done('Saved to My foods — one tap next time');
+  }
+  async function remove() {
+    await db.foodLogs.delete(entry.id);
+    await done('Entry removed');
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title="Edit entry" description={`${entry.servings} serving${entry.servings === 1 ? '' : 's'} · values are totals for this entry`}>
+      <div className="flex flex-col gap-3">
+        <Field label="Name">
+          <Input value={e.name} onChange={(x) => setE({ ...e, name: x.target.value })} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Protein (g)">
+            <Input type="number" inputMode="decimal" value={e.protein} onChange={(x) => setE({ ...e, protein: x.target.value })} />
+          </Field>
+          <Field label="Calories (kcal)">
+            <Input type="number" inputMode="numeric" value={e.calories} placeholder="add" onChange={(x) => setE({ ...e, calories: x.target.value })} />
+          </Field>
+        </div>
+        <Button onClick={save}>Save</Button>
+        {entry.foodId === null && (
+          <>
+            <Button variant="secondary" onClick={saveAsFood}>
+              <Plus size={15} /> Save as a new food (one tap next time)
+            </Button>
+            <Field label="…or link to an existing saved food">
+              <Input placeholder="Search My foods" value={q} onChange={(x) => setQ(x.target.value)} />
+            </Field>
+            {matches.map((f) => (
+              <button key={f.id} onClick={() => link(f)} className="text-left px-3 py-2 rounded-xl bg-base-850 border border-base-700">
+                <p className="text-sm text-base-50">{f.name}</p>
+                <p className="text-[11px] text-base-400">
+                  {f.serving} · {f.protein}g{f.calories !== null && ` · ${f.calories} kcal`} → × {entry.servings}
+                </p>
+              </button>
+            ))}
+          </>
+        )}
+        <Button variant="danger" onClick={remove}>
+          <Trash2 size={15} /> Remove entry
+        </Button>
+      </div>
+    </Dialog>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Search, Plus, ArrowLeft } from 'lucide-react';
 import { db } from '@/lib/db';
@@ -20,6 +20,17 @@ export function ExercisePickerDialog({
 }) {
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
+  // A fast double-tap used to add the same exercise twice before the dialog closed.
+  const picked = useRef(false);
+  useEffect(() => {
+    if (open) picked.current = false;
+  }, [open]);
+  function pick(def: ExerciseDef) {
+    if (picked.current) return;
+    picked.current = true;
+    onPick(def);
+    close();
+  }
 
   const exercises = useLiveQuery(() => db.exerciseDefs.orderBy('name').toArray(), []);
 
@@ -44,10 +55,7 @@ export function ExercisePickerDialog({
         <CreateExerciseForm
           initialName={query}
           onBack={() => setCreating(false)}
-          onCreated={(def) => {
-            onPick(def);
-            close();
-          }}
+          onCreated={pick}
         />
       ) : (
         <div className="flex flex-col gap-3 min-h-0">
@@ -66,10 +74,7 @@ export function ExercisePickerDialog({
               <button
                 key={e.id}
                 className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl hover:bg-base-800 text-left"
-                onClick={() => {
-                  onPick(e);
-                  close();
-                }}
+                onClick={() => pick(e)}
               >
                 <span className="text-[15px] text-base-50 font-medium">{e.name}</span>
                 <span className="text-xs text-base-400">{e.muscleGroup}</span>
@@ -100,6 +105,7 @@ function CreateExerciseForm({
   const [name, setName] = useState(initialName);
   const [muscleGroup, setMuscleGroup] = useState<string>('Chest');
   const [equipment, setEquipment] = useState('');
+  const [kind, setKind] = useState<'strength' | 'timed'>('strength');
 
   async function create() {
     const trimmed = name.trim();
@@ -115,6 +121,7 @@ function CreateExerciseForm({
       videoUrl: '',
       archived: false,
       createdAt: Date.now(),
+      kind,
     };
     await db.exerciseDefs.add(def);
     onCreated(def);
@@ -132,6 +139,15 @@ function CreateExerciseForm({
         value={muscleGroup}
         onValueChange={setMuscleGroup}
         options={MUSCLE_GROUPS.map((m) => ({ value: m, label: m }))}
+      />
+      <label className="text-xs font-medium text-base-400 -mb-2">Type</label>
+      <Select
+        value={kind}
+        onValueChange={(v) => setKind(v as 'strength' | 'timed')}
+        options={[
+          { value: 'strength', label: 'Strength (weight × reps)' },
+          { value: 'timed', label: 'Timed rounds (boxing, conditioning)' },
+        ]}
       />
       <label className="text-xs font-medium text-base-400 -mb-2">Equipment</label>
       <Input value={equipment} onChange={(e) => setEquipment(e.target.value)} placeholder="e.g. Cable, Dumbbell" />

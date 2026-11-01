@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
 import { totalVolume } from '@/lib/calculations';
+import { formatSet } from '@/lib/workoutRules';
 
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -42,8 +43,9 @@ export default function SessionDetail() {
                   <div key={s.id} className="flex items-center gap-3 text-sm">
                     <span className="text-base-500 w-4">{s.setNumber}</span>
                     <span className="text-base-100 font-medium">
-                      {s.weight}kg × {s.reps}
+                      {formatSet(s)}
                     </span>
+                    {s.rpe != null && <span className="text-xs text-base-500">RPE {s.rpe}</span>}
                     {s.isWarmup && <span className="text-xs text-base-500">warmup</span>}
                   </div>
                 ))}

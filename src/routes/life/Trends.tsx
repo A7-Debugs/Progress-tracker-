@@ -8,7 +8,7 @@ import { NoData, TrendBars, TrendLines, type SeriesPoint } from '@/components/li
 import { COLORS } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
 import { addDaysStr, calorieTargetOn, dateRange, ds, evaluatePeriod, evaluateWeek, weekStartOf } from '@/lib/life/engine';
-import { proteinTargets } from '@/lib/life/nutrition';
+import { expenditureSeries, proteinTargets } from '@/lib/life/nutrition';
 import { derive } from '@/lib/life/finance';
 
 const r1 = (x: number | null) => (x === null ? null : Math.round(x * 10) / 10);
@@ -89,9 +89,12 @@ export default function Trends() {
         target: calorieTargetOn(ctx, x),
       };
     });
+    const burn = expenditureSeries(ctx.nutrition, ctx.bodyweight, foodDays);
+    nutrition.forEach((p, i) => (p.burn = burn[i]));
     const hasCalories = nutrition.some((p) => p.calories !== null);
+    const hasBurn = burn.some((b) => b !== null);
 
-    return { weeks, months, sleepDaily, bodyweight, cumulative, finance, nutrition, hasCalories, totalDeep: cum };
+    return { weeks, months, sleepDaily, bodyweight, cumulative, finance, nutrition, hasCalories, hasBurn, totalDeep: cum };
   }, [ctx]);
 
   if (!ctx || !d) return null;
@@ -158,15 +161,17 @@ export default function Trends() {
         </Chart>
 
         {d.hasCalories && (
-          <Chart title="Calories" sub="Daily kcal from the food log (dashed = target once set)">
+          <Chart title="Calories in vs estimated burn" sub="Daily intake from the food log; burn = rolling 28-day estimate from intake and weight trend">
             <TrendLines
               data={d.nutrition}
               lines={[
-                { key: 'calories', color: COLORS.gold, name: 'Calories' },
+                { key: 'calories', color: COLORS.gold, name: 'Intake' },
+                ...(d.hasBurn ? [{ key: 'burn', color: COLORS.accent, name: 'Estimated burn' }] : []),
                 { key: 'target', color: COLORS.info, name: 'Target', dashed: true },
               ]}
               unit=" kcal"
             />
+            {!d.hasBurn && <p className="text-[11px] text-base-500 mt-1">Burn estimate appears after 10 complete calorie days and 4+ weigh-ins over 10+ days.</p>}
           </Chart>
         )}
 

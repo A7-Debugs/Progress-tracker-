@@ -28,15 +28,17 @@ export default function WorkoutEditor() {
   if (!workout || !items) return null;
 
   async function addExercise(def: ExerciseDef) {
+    if (items!.some((x) => x.row.exerciseDefId === def.id) && !confirm(`${def.name} is already in this workout. Add it a second time?`)) return;
+    const timed = def.kind === 'timed';
     await db.workoutExercises.add({
       id: newId(),
       workoutTemplateId: workoutId!,
       exerciseDefId: def.id,
       order: items!.length,
       targetSets: 3,
-      targetRepLow: 8,
-      targetRepHigh: 12,
-      rpeTarget: 8,
+      targetRepLow: timed ? 3 : 8,
+      targetRepHigh: timed ? 3 : 12,
+      rpeTarget: timed ? null : 8,
       restTimeSec: def.restTimeSec || 90,
     });
   }
@@ -95,8 +97,9 @@ export default function WorkoutEditor() {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-base-50 truncate">{def.name}</p>
                   <p className="text-sm text-base-400">
-                    {row.targetSets} sets × {row.targetRepLow}-{row.targetRepHigh} reps
-                    {row.rpeTarget ? ` @ RPE ${row.rpeTarget}` : ''}
+                    {def.kind === 'timed'
+                      ? `${row.targetSets} rounds × ${row.targetRepLow === row.targetRepHigh ? row.targetRepLow : `${row.targetRepLow}-${row.targetRepHigh}`} min`
+                      : `${row.targetSets} sets × ${row.targetRepLow}-${row.targetRepHigh} reps${row.rpeTarget ? ` @ RPE ${row.rpeTarget}` : ''}`}
                   </p>
                 </div>
                 {isOpen ? <ChevronUp size={18} className="text-base-400" /> : <ChevronDown size={18} className="text-base-400" />}
@@ -104,21 +107,21 @@ export default function WorkoutEditor() {
               {isOpen && (
                 <div className="px-4 pb-4 flex flex-col gap-3 border-t border-base-800 pt-3 animate-fade-in">
                   <div className="grid grid-cols-3 gap-2">
-                    <Field label="Sets">
+                    <Field label={def.kind === 'timed' ? 'Rounds' : 'Sets'}>
                       <NumberField
                         value={row.targetSets}
                         onChange={(e) => updateField(row.id, { targetSets: Number(e.target.value) })}
                         className="h-10 text-base"
                       />
                     </Field>
-                    <Field label="Min reps">
+                    <Field label={def.kind === 'timed' ? 'Min / round (low)' : 'Min reps'}>
                       <NumberField
                         value={row.targetRepLow}
                         onChange={(e) => updateField(row.id, { targetRepLow: Number(e.target.value) })}
                         className="h-10 text-base"
                       />
                     </Field>
-                    <Field label="Max reps">
+                    <Field label={def.kind === 'timed' ? 'Min / round (high)' : 'Max reps'}>
                       <NumberField
                         value={row.targetRepHigh}
                         onChange={(e) => updateField(row.id, { targetRepHigh: Number(e.target.value) })}

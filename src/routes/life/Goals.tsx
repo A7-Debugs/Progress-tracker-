@@ -6,13 +6,15 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Textarea } from '@/components/ui/Input';
+import { Input, Textarea } from '@/components/ui/Input';
 import { Dialog } from '@/components/ui/Dialog';
 import { scoreColor } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
 import { DOMAIN_LABELS, HABITS } from '@/lib/life/habits';
 import { TIER_LABELS, TIER_ORDER } from '@/lib/life/defaults';
-import { habitStreaks, scheduleOn, weekStartOf } from '@/lib/life/engine';
+import { addDaysStr, habitStreaks, scheduleOn, weekStartOf } from '@/lib/life/engine';
+import { METRICS, TIER_DAYS, goalPace, metricFor } from '@/lib/life/goalPace';
+import type { GoalMetricKey } from '@/lib/life/types';
 import type { Domain, GoalNode, GoalTier } from '@/lib/life/types';
 
 export default function Goals() {
@@ -86,6 +88,7 @@ export default function Goals() {
                           <Trash2 size={13} />
                         </button>
                       </div>
+                      <PaceBar ctx={ctx} node={g} />
                       {habits.length > 0 && (
                         <div className="mt-2.5 pt-2.5 border-t border-base-800 flex flex-col gap-1">
                           {habits.map((h) => {
@@ -123,7 +126,7 @@ export default function Goals() {
         </Card>
       </div>
 
-      {editing && <GoalDialog node={editing} goals={goals} onClose={() => setEditing(null)} onSave={upsert} />}
+      {editing && <GoalDialog node={editing} goals={goals} initialMetric={metricFor(ctx, editing)} today={ctx.today} onClose={() => setEditing(null)} onSave={upsert} />}
     </div>
   );
 }
@@ -134,8 +137,23 @@ function defaultParent(goals: GoalNode[], tier: GoalTier): string | null {
   return goals.find((g) => g.tier === TIER_ORDER[idx - 1])?.id ?? null;
 }
 
-function GoalDialog({ node, goals, onClose, onSave }: { node: GoalNode; goals: GoalNode[]; onClose: () => void; onSave: (n: GoalNode) => void }) {
+function GoalDialog({
+  node,
+  goals,
+  initialMetric,
+  today,
+  onClose,
+  onSave,
+}: {
+  node: GoalNode;
+  goals: GoalNode[];
+  initialMetric: GoalNode['metric'];
+  today: string;
+  onClose: () => void;
+  onSave: (n: GoalNode) => void;
+}) {
   const [n, setN] = useState(node);
+  const [metric, setMetric] = useState(initialMetric ?? null);
   const idx = TIER_ORDER.indexOf(n.tier);
   const parents = goals.filter((g) => TIER_ORDER.indexOf(g.tier) < idx && g.id !== n.id);
   const domains = Object.keys(DOMAIN_LABELS) as Domain[];
@@ -171,10 +189,66 @@ function GoalDialog({ node, goals, onClose, onSave }: { node: GoalNode; goals: G
             </button>
           ))}
         </div>
-        <Button onClick={() => onSave(n)} disabled={!n.title.trim()}>
+        <div className="border-t border-base-800 pt-3 flex flex-col gap-2">
+          <label className="text-xs font-medium text-base-400">Track progress against (optional)</label>
+          <select
+            value={metric?.key ?? ''}
+            onChange={(e) =>
+              setMetric(
+                e.target.value
+                  ? { key: e.target.value as GoalMetricKey, target: metric?.target ?? 10, start: metric?.start ?? today, deadline: metric?.deadline ?? addDaysStr(today, TIER_DAYS[n.tier]) }
+                  : null,
+              )
+            }
+            className="h-11 rounded-xl bg-base-850 border border-base-700 px-3 text-sm text-base-50"
+          >
+            <option value="">— no tracker —</option>
+            {(Object.keys(METRICS) as GoalMetricKey[]).map((k) => (
+              <option key={k} value={k}>
+                {METRICS[k].label}
+              </option>
+            ))}
+          </select>
+          {metric && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-base-500">Target ({METRICS[metric.key].unit})</label>
+                <Input type="number" value={metric.target} onChange={(e) => setMetric({ ...metric, target: Number(e.target.value) || 0 })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-base-500">From</label>
+                <Input type="date" value={metric.start} onChange={(e) => setMetric({ ...metric, start: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-base-500">By</label>
+                <Input type="date" value={metric.deadline} onChange={(e) => setMetric({ ...metric, deadline: e.target.value })} />
+              </div>
+            </div>
+          )}
+        </div>
+        <Button onClick={() => onSave({ ...n, metric })} disabled={!n.title.trim()}>
           Save
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+function PaceBar({ ctx, node }: { ctx: NonNullable<ReturnType<typeof useLife>>; node: GoalNode }) {
+  const p = goalPace(ctx, node);
+  if (!p) return null;
+  const color = p.status === 'done' || p.status === 'on-pace' ? '#7ce281' : p.status === 'behind' || p.status === 'missed' ? '#ffb454' : '#6ea8fe';
+  return (
+    <div className="mt-2.5">
+      <div className="flex justify-between text-[11px] mb-1">
+        <span className="text-base-400">{METRICS[p.metric.key].label}</span>
+        <span className="tabular-nums" style={{ color }}>
+          {p.text}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-base-800 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${p.fraction * 100}%`, background: color }} />
+      </div>
+    </div>
   );
 }

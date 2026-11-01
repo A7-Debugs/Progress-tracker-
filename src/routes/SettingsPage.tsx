@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Download, Upload, FileSpreadsheet, Bell, Trash2, Info } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Bell, Trash2, Info, CalendarPlus, ClipboardCheck, CalendarCheck } from 'lucide-react';
+import { DEFAULT_CHECKIN_TIME, DEFAULT_REVIEW_TIME, downloadReminderCalendar } from '@/lib/reminders';
 import { db } from '@/lib/db';
 import { exportJSON, exportCSV, importJSON, wipeAllData } from '@/lib/backup';
 import { TopBar } from '@/components/layout/TopBar';
@@ -24,6 +25,13 @@ export default function SettingsPage() {
       await Notification.requestPermission();
     }
     await db.settings.update('settings', { reminderEnabled: enabled });
+  }
+
+  async function toggleLife(key: 'checkinReminder' | 'reviewReminder', enabled: boolean) {
+    if (enabled && 'Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    await db.settings.update('settings', key === 'checkinReminder' ? { checkinReminder: enabled } : { reviewReminder: enabled });
   }
 
   async function toggleDay(day: number) {
@@ -69,7 +77,39 @@ export default function SettingsPage() {
     <div className="animate-fade-in">
       <TopBar title="Settings" back />
       <div className="px-4 pt-3 pb-24 flex flex-col gap-4">
-        <Section title="Reminders">
+        <Section title="Life OS reminders">
+          <Card className="p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={16} className="text-base-400" />
+                <span className="text-sm font-medium text-base-100">Evening check-in (daily)</span>
+              </div>
+              <Switch checked={!!settings.checkinReminder} onCheckedChange={(v) => toggleLife('checkinReminder', v)} />
+            </div>
+            {settings.checkinReminder && (
+              <Input type="time" value={settings.checkinReminderTime ?? DEFAULT_CHECKIN_TIME} onChange={(e) => db.settings.update('settings', { checkinReminderTime: e.target.value })} />
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CalendarCheck size={16} className="text-base-400" />
+                <span className="text-sm font-medium text-base-100">Sunday review</span>
+              </div>
+              <Switch checked={!!settings.reviewReminder} onCheckedChange={(v) => toggleLife('reviewReminder', v)} />
+            </div>
+            {settings.reviewReminder && (
+              <Input type="time" value={settings.reviewReminderTime ?? DEFAULT_REVIEW_TIME} onChange={(e) => db.settings.update('settings', { reviewReminderTime: e.target.value })} />
+            )}
+            <Button variant="secondary" onClick={() => downloadReminderCalendar(settings)}>
+              <CalendarPlus size={16} /> Add reminders to my phone's calendar
+            </Button>
+            <p className="text-xs text-base-500">
+              Most reliable option: the calendar file adds a repeating daily check-in and a Sunday review with alarms, which fire even when this app is
+              closed. In-app notifications only appear while the app is open or recently used, because web apps can't wake themselves without a server.
+            </p>
+          </Card>
+        </Section>
+
+        <Section title="Workout reminder">
           <Card className="p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
