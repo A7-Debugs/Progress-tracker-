@@ -100,7 +100,7 @@ export default function SystemPage() {
 
         <SectionTitle>Modes</SectionTitle>
         <Card className="p-4 text-xs text-base-300 flex flex-col gap-2">
-          <p><span className="text-warn font-semibold">Minimum Mode</span> — stressful/busy weeks. Reduced frequencies and thresholds; habits unlocked after Level 1 pause (except connection). Recommended when work ≥ 55h, stress ≥ 4/5, last week's sleep &lt; 6.5h, or two softer warning signs.</p>
+          <p><span className="text-warn font-semibold">Minimum Mode</span> — stressful/busy weeks. Reduced frequencies and thresholds (training still holds at 3 short full-body sessions); habits unlocked after Level 1 pause (except connection). Recommended when work ≥ 55h, stress ≥ 4/5, last week's sleep &lt; 6.5h, or two softer warning signs.</p>
           <p><span className="text-base-100 font-semibold">Normal Mode</span> — the standard routine for your level.</p>
           <p><span className="text-info font-semibold">High-Performance Mode</span> — one extra scheduled day for training, study, protein, planning, reading, mobility. Only when last week was ≥ 85% with ≥ 7.3h sleep, energy ≥ 3.8, low stress and a light week ahead. Never more than 2 weeks in a row.</p>
         </Card>

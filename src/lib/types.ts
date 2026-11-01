@@ -28,6 +28,8 @@ export interface ExerciseDef {
   videoUrl: string;
   archived: boolean;
   createdAt: number;
+  /** 'timed' = rounds × minutes (boxing, conditioning). Undefined = strength (weight × reps). */
+  kind?: 'strength' | 'timed';
 }
 
 export interface Program {
@@ -83,6 +85,8 @@ export interface SetLog {
   rpe: number | null;
   isWarmup: boolean;
   createdAt: number;
+  /** Timed exercises: length of this round in seconds (weight 0, reps 1). */
+  durationSec?: number;
 }
 
 export interface BodyweightLog {
@@ -115,4 +119,9 @@ export interface Settings {
   reminderEnabled: boolean;
   reminderTime: string; // HH:mm
   reminderDays: number[]; // 0=Sun..6=Sat
+  /** Life OS reminders (optional for older settings rows). */
+  checkinReminder?: boolean;
+  checkinReminderTime?: string; // HH:mm, daily
+  reviewReminder?: boolean;
+  reviewReminderTime?: string; // HH:mm, Sundays
 }

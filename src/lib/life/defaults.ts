@@ -64,7 +64,7 @@ export function defaultProfile(): LifeProfile {
     startDate: today,
     currency: '£',
     proteinMinG: 140,
-    proteinIdealG: 180,
+    proteinIdealG: 160,
     pausedHabits: [],
     fiAnnualSpend: null,
     withdrawalRate: 0.04,
@@ -84,4 +84,6 @@ export function defaultProfile(): LifeProfile {
 export async function ensureLifeProfile(): Promise<void> {
   const existing = await db.lifeProfile.get('life');
   if (!existing) await db.lifeProfile.put(defaultProfile());
+  // 180 g made most days look like failure; untouched profiles move to a 160 g stretch (140 g stays the target).
+  else if (existing.proteinMinG === 140 && existing.proteinIdealG === 180) await db.lifeProfile.update('life', { proteinIdealG: 160 });
 }

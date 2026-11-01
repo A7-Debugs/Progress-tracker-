@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toaster';
 import type { ExerciseDef, WorkoutExercise } from '@/lib/types';
+import { syncCheckin } from '@/lib/life/sync';
 
 function useElapsed(startedAt: number) {
   const [elapsed, setElapsed] = useState(Date.now() - startedAt);
@@ -42,11 +43,23 @@ export default function SessionLog() {
   const displayNotes = notes ?? session.notes;
 
   async function finish() {
-    const setCount = await db.setLogs.where('sessionId').equals(sessionId!).count();
-    if (setCount === 0) {
-      if (!confirm('No sets logged yet. Finish anyway?')) return;
+    const sets = await db.setLogs.where('sessionId').equals(sessionId!).toArray();
+    const working = sets.filter((s) => !s.isWarmup).length;
+    const mins = Math.round((Date.now() - session!.startedAt) / 60000);
+    // Near-empty sessions distort training stats: nothing logged is discarded, a single quick set needs a decision.
+    if (working === 0) {
+      if (!confirm('No sets logged — discard this session?')) return;
+      await db.sessions.delete(sessionId!);
+      toast('Empty session discarded', 'info');
+      navigate('/train', { replace: true });
+      return;
     }
-    await db.sessions.update(sessionId!, { completedAt: Date.now(), notes: displayNotes });
+    if (working === 1 && mins < 10 && !confirm(`Only 1 set in ${mins} min. Save it anyway? (Cancel keeps the session open.)`)) return;
+    // Finish at the last logged set if the app was left open long after training.
+    const lastSet = Math.max(...sets.map((s) => s.createdAt));
+    const end = Date.now() - lastSet > 45 * 60000 ? lastSet + 5 * 60000 : Date.now();
+    await db.sessions.update(sessionId!, { completedAt: end, notes: displayNotes });
+    await syncCheckin(session!.date);
     toast('Workout saved');
     navigate('/train', { replace: true });
   }

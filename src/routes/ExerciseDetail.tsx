@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Pencil, Trophy, Weight, TrendingUp, Repeat, Info } from 'lucide-react';
+import { Pencil, Trophy, Weight, TrendingUp, Repeat, Info, GitMerge } from 'lucide-react';
 import { db } from '@/lib/db';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
@@ -15,10 +15,14 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { estimate1RM, totalVolume, groupBySession, maxWeight, maxReps, best1RM } from '@/lib/calculations';
 import { MUSCLE_GROUPS } from '@/lib/types';
+import { formatSet } from '@/lib/workoutRules';
+import { mergeExercises } from '@/lib/cleanup';
+import { useToast } from '@/components/ui/Toaster';
 
 export default function ExerciseDetail() {
   const { exerciseId } = useParams<{ exerciseId: string }>();
   const [editOpen, setEditOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [chartMetric, setChartMetric] = useState<'weight' | '1rm' | 'volume' | 'reps'>('1rm');
 
   const def = useLiveQuery(() => db.exerciseDefs.get(exerciseId!), [exerciseId]);
@@ -114,7 +118,7 @@ export default function ExerciseDetail() {
                     <div className="flex flex-wrap gap-2">
                       {g.sets.map((s) => (
                         <span key={s.id} className="text-sm font-medium text-base-100 bg-base-850 rounded-lg px-2 py-1">
-                          {s.weight}kg × {s.reps}
+                          {formatSet(s)}
                         </span>
                       ))}
                     </div>
@@ -124,6 +128,10 @@ export default function ExerciseDetail() {
             </div>
           </>
         )}
+
+        <Button variant="secondary" onClick={() => setMergeOpen(true)}>
+          <GitMerge size={15} /> Merge into another exercise
+        </Button>
 
         {def.notes && (
           <Card className="p-4">
@@ -140,6 +148,7 @@ export default function ExerciseDetail() {
       </div>
 
       <EditExerciseDialog open={editOpen} onOpenChange={setEditOpen} exerciseId={exerciseId!} />
+      {mergeOpen && <MergeDialog sourceId={exerciseId!} sourceName={def.name} sets={sets.length} onClose={() => setMergeOpen(false)} />}
     </div>
   );
 }
@@ -172,6 +181,7 @@ function EditExerciseDialog({
     restTimeSec: string;
     tempo: string;
     videoUrl: string;
+    kind: 'strength' | 'timed';
   }>(null);
 
   const active = form ?? (def
@@ -183,6 +193,7 @@ function EditExerciseDialog({
         restTimeSec: String(def.restTimeSec || ''),
         tempo: def.tempo,
         videoUrl: def.videoUrl,
+        kind: def.kind ?? 'strength',
       }
     : null);
 
@@ -198,6 +209,7 @@ function EditExerciseDialog({
       restTimeSec: Number(active.restTimeSec) || 0,
       tempo: active.tempo.trim(),
       videoUrl: active.videoUrl.trim(),
+      kind: active.kind,
     });
     onOpenChange(false);
     setForm(null);
@@ -214,6 +226,16 @@ function EditExerciseDialog({
             value={active.muscleGroup}
             onValueChange={(v) => setForm({ ...active, muscleGroup: v })}
             options={MUSCLE_GROUPS.map((m) => ({ value: m, label: m }))}
+          />
+        </Field>
+        <Field label="Type">
+          <Select
+            value={active.kind}
+            onValueChange={(v) => setForm({ ...active, kind: v as 'strength' | 'timed' })}
+            options={[
+              { value: 'strength', label: 'Strength (weight × reps)' },
+              { value: 'timed', label: 'Timed rounds (boxing, conditioning)' },
+            ]}
           />
         </Field>
         <Field label="Equipment">
@@ -245,5 +267,37 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-base-400">{label}</label>
       {children}
     </div>
+  );
+}
+
+function MergeDialog({ sourceId, sourceName, sets, onClose }: { sourceId: string; sourceName: string; sets: number; onClose: () => void }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [q, setQ] = useState('');
+  const others = useLiveQuery(() => db.exerciseDefs.filter((d) => d.id !== sourceId && !d.archived).sortBy('name'), [sourceId]);
+  const list = (others ?? []).filter((d) => d.name.toLowerCase().includes(q.trim().toLowerCase()));
+
+  async function merge(targetId: string, targetName: string) {
+    if (!confirm(`Merge "${sourceName}" into "${targetName}"?\n\nAll ${sets} logged sets move to ${targetName}, workouts using ${sourceName} switch to it, and "${sourceName}" is removed. This can't be undone (export a backup first if unsure).`)) return;
+    await mergeExercises(sourceId, targetId);
+    toast(`Merged into ${targetName}`);
+    onClose();
+    navigate(`/exercises/${targetId}`, { replace: true });
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={`Merge ${sourceName} into…`} description="Pick the exercise to keep. History from both becomes one.">
+      <div className="flex flex-col gap-2">
+        <Input autoFocus placeholder="Search exercises" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="max-h-[50dvh] overflow-y-auto flex flex-col gap-1">
+          {list.map((d) => (
+            <button key={d.id} onClick={() => merge(d.id, d.name)} className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-base-800 text-left">
+              <span className="text-[15px] text-base-50">{d.name}</span>
+              <span className="text-xs text-base-400">{d.muscleGroup}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Dialog>
   );
 }

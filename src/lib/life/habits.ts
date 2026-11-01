@@ -117,10 +117,11 @@ export const HABITS: HabitSpec[] = [
       5: { min: 40, ideal: 70, perWeek: 5 },
       6: { min: 45, ideal: 75, perWeek: 5 },
     },
-    minimumMode: { min: 20, ideal: 45, perWeek: 2 },
+    // Training frequency holds at 3 even in heavy weeks: a short full-body session is the minimum version.
+    minimumMode: { min: 25, ideal: 45, perWeek: 3 },
     highBump: 1,
     redesign: {
-      smaller: 'Commit only to arriving and doing the first exercise. Leaving after 20 minutes still counts.',
+      smaller: 'On bad weeks, do a 25-minute full-body session (one squat/leg press, one push, one pull). It still counts.',
       environment: 'Gym within 10 minutes of home/work, bag in the car, workout pre-planned in the app.',
       trigger: 'Calendar-block the sessions on Sunday during the weekly review.',
     },

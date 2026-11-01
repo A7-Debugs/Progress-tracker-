@@ -21,8 +21,10 @@ export function derive(s: FinanceSnapshot): FinanceDerived {
   const netWorth = liquid + fiAssets + homeEquity - n(s.otherDebt);
   const savings = s.netIncome != null && s.spending != null ? s.netIncome - s.spending : null;
   const savingsRate = savings !== null && s.netIncome ? savings / s.netIncome : null;
-  const investRate = s.invested != null && s.netIncome ? s.invested / s.netIncome : null;
-  const surplus = savings !== null ? savings - n(s.invested) : null;
+  // Property contributions (overpayments, deposit saving, BTL) build wealth like investing does.
+  const wealth = s.invested != null || s.propertyContribution != null ? n(s.invested) + n(s.propertyContribution) : null;
+  const investRate = wealth !== null && s.netIncome ? wealth / s.netIncome : null;
+  const surplus = savings !== null ? savings - n(wealth) : null;
   return { month: s.month, netWorth, liquid, fiAssets, savings, savingsRate, investRate, surplus };
 }
 
@@ -111,7 +113,7 @@ export function gt3rsReadiness(profile: LifeProfile, snaps: FinanceSnapshot[]): 
   const monthlyIncome = avg(incomes);
   const essentials = last3.map((s) => s.essentialSpending).filter((x): x is number => x != null);
   const essentialAvg = avg(essentials);
-  const investedAvg = avg(last3.map((s) => s.invested).filter((x): x is number => x != null));
+  const investedAvg = avg(last3.filter((s) => s.invested != null || s.propertyContribution != null).map((s) => n(s.invested) + n(s.propertyContribution)));
   const surplusAvg = avg(last3.map((s) => derive(s).surplus).filter((x): x is number => x !== null));
   const runningMonthly = annualRunningCost / 12;
   const ownershipCost = annualRunningCost + price * annualDepreciationPct;
@@ -260,4 +262,16 @@ export function gt3rsReadiness(profile: LifeProfile, snaps: FinanceSnapshot[]): 
       : `Building foundations — ${blockers}/10 conditions still to meet. Keep compounding.`;
 
   return { status, headline, readiness, canAfford, comfortable, conditions: conds, fiDelayMonths, missing };
+}
+
+/** Emergency fund in months of spending: essential spending (3-month average) or, if not entered, total spending. */
+export function emergencyFundMonths(snaps: FinanceSnapshot[]): { months: number; basis: 'essential' | 'total' } | null {
+  const latest = snaps[snaps.length - 1];
+  if (!latest || latest.emergencyFund == null) return null;
+  const last3 = snaps.slice(-3);
+  const ess = avg(last3.map((s) => s.essentialSpending).filter((x): x is number => x != null && x > 0));
+  const tot = avg(last3.map((s) => s.spending).filter((x): x is number => x != null && x > 0));
+  if (ess) return { months: latest.emergencyFund / ess, basis: 'essential' };
+  if (tot) return { months: latest.emergencyFund / tot, basis: 'total' };
+  return null;
 }

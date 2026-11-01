@@ -14,6 +14,7 @@ import { Chips, Collapsible, Scale5, TriPicker } from '@/components/life/Visuals
 import { useLife } from '@/lib/life/useLife';
 import { HABIT_BY_ID, formatTarget } from '@/lib/life/habits';
 import { addDaysStr, scheduleOn, targetExtras } from '@/lib/life/engine';
+import { derivedFields } from '@/lib/life/sync';
 import type { DailyCheckin, HabitId, Hit } from '@/lib/life/types';
 
 type Form = Omit<DailyCheckin, 'id' | 'date' | 'createdAt' | 'updatedAt'> & { bodyweight: number | null };
@@ -93,7 +94,8 @@ export default function CheckIn() {
     const existing = ctx!.byDate.get(date);
     const { bodyweight, ...rest } = form;
     const now = Date.now();
-    await db.checkins.put({ ...rest, id: date, date, createdAt: existing?.createdAt ?? now, updatedAt: now });
+    const derived = await derivedFields(date, rest);
+    await db.checkins.put({ ...rest, ...derived, id: date, date, createdAt: existing?.createdAt ?? now, updatedAt: now });
     if (bodyweight !== null) {
       const bw = await db.bodyweightLogs.where('date').equals(date).first();
       if (bw) await db.bodyweightLogs.update(bw.id, { weight: bodyweight });
@@ -105,10 +107,10 @@ export default function CheckIn() {
           bodyFat: null,
           calories: null,
           protein: null,
-          sleepHours: form.sleepHours,
+          sleepHours: null,
           waterLiters: null,
-          mood: form.mood,
-          energy: form.energy,
+          mood: null,
+          energy: null,
           createdAt: now,
         });
     }

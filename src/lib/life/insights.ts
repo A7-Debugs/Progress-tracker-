@@ -467,7 +467,15 @@ export function detectGaming(ctx: LifeContext): Flag[] {
       body: `${active} active habits with ${pct(p21.habitAdherence ?? 0)} adherence. Pause the newest one in Settings → Life OS until the rest are automatic.`,
     });
 
-  // 6. Calories vs bodyweight
+  // 6. Partly logged days (forgotten snacks / work meals) make calorie numbers meaningless
+  const partial = estimateMaintenance(ctx.nutrition, ctx.bodyweight, addDaysStr(ctx.today, -13), ctx.today).partialDays;
+  if (partial >= 3)
+    flags.push({
+      title: 'Some days look partly logged',
+      body: `${partial} of the last 14 days have under half your usual calories logged — usually snacks or meals at work. Log everything for one week so the calorie numbers mean something.`,
+    });
+
+  // 7. Calories vs bodyweight
   const cal = ctx.profile.calorie;
   if (cal?.unlockedAt) {
     const start = addDaysStr(ctx.today, -20);
@@ -496,7 +504,7 @@ export function detectGaming(ctx: LifeContext): Flag[] {
     }
   }
 
-  // 7. High-Performance Mode every week
+  // 8. High-Performance Mode every week
   const hp = pastWeeks(ctx, 4).filter((w) => ctx.planByWeek.get(w.start)?.mode === 'high').length;
   if (hp >= 3)
     flags.push({ title: 'High-Performance Mode is becoming the default', body: `${hp} of the last 4 weeks were High-Performance. It's meant to be occasional — schedule a Normal week.` });
@@ -639,4 +647,70 @@ export function goalAlignment(ctx: LifeContext): { rows: GoalAlignment[]; orphan
     });
   const orphans = active.filter((h) => !goals.some((g) => g.id === h.goalLink));
   return { rows, orphans };
+}
+
+// ---------------------------------------------------------------------------
+// Weekly patterns (what changed vs last week, in plain words)
+// ---------------------------------------------------------------------------
+
+function foodCounts(ctx: LifeContext, start: string, end: string): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const l of ctx.foodLogs) {
+    if (l.date < start || l.date > end) continue;
+    const k = l.name.trim().toLowerCase();
+    m.set(k, (m.get(k) ?? 0) + l.servings);
+  }
+  return m;
+}
+
+/** Notable week-on-week changes, e.g. "Stress up (2.1 → 3.4)", "Croissant up (1 → 5)". */
+export function weeklyPatterns(ctx: LifeContext, week: PeriodEval, prev: PeriodEval | null): string[] {
+  if (!prev || week.loggedDays < 3 || prev.loggedDays < 3) return [];
+  const out: string[] = [];
+  const m = week.metrics;
+  const p = prev.metrics;
+  const dir = (a: number, b: number) => (a > b ? 'up' : 'down');
+  if (m.avgStress !== null && p.avgStress !== null && Math.abs(m.avgStress - p.avgStress) >= 0.5)
+    out.push(`Stress ${dir(m.avgStress, p.avgStress)} (${p.avgStress.toFixed(1)} → ${m.avgStress.toFixed(1)})`);
+  if (m.trainingSessions !== p.trainingSessions) out.push(`Gym days ${dir(m.trainingSessions, p.trainingSessions)} (${p.trainingSessions} → ${m.trainingSessions})`);
+  const pa = week.habits.get('protein')!;
+  const pb = prev.habits.get('protein')!;
+  if (pa.successes !== pb.successes && Math.abs(pa.successes - pb.successes) >= 2) out.push(`Protein days ${dir(pa.successes, pb.successes)} (${pb.successes} → ${pa.successes})`);
+  if (m.avgSleep !== null && p.avgSleep !== null && Math.abs(m.avgSleep - p.avgSleep) >= 0.4)
+    out.push(`Sleep ${dir(m.avgSleep, p.avgSleep)} (${p.avgSleep.toFixed(1)}h → ${m.avgSleep.toFixed(1)}h)`);
+  if (p.deepWorkMinutes > 0 && Math.abs(m.deepWorkMinutes - p.deepWorkMinutes) / p.deepWorkMinutes >= 0.25)
+    out.push(`Deep work ${dir(m.deepWorkMinutes, p.deepWorkMinutes)} (${(p.deepWorkMinutes / 60).toFixed(1)}h → ${(m.deepWorkMinutes / 60).toFixed(1)}h)`);
+  if (m.avgEnergy !== null && p.avgEnergy !== null && Math.abs(m.avgEnergy - p.avgEnergy) >= 0.5)
+    out.push(`Energy ${dir(m.avgEnergy, p.avgEnergy)} (${p.avgEnergy.toFixed(1)} → ${m.avgEnergy.toFixed(1)})`);
+  const fa = foodCounts(ctx, week.start, week.end);
+  const fb = foodCounts(ctx, prev.start, prev.end);
+  const changes = [...new Set([...fa.keys(), ...fb.keys()])]
+    .map((k) => ({ k, a: fa.get(k) ?? 0, b: fb.get(k) ?? 0 }))
+    .filter((x) => Math.abs(x.a - x.b) >= 2 && x.k !== 'quick add' && x.k !== 'estimated meal')
+    .sort((x, y) => Math.abs(y.a - y.b) - Math.abs(x.a - x.b))
+    .slice(0, 3);
+  for (const c of changes) out.push(`${c.k[0].toUpperCase()}${c.k.slice(1)} ${dir(c.a, c.b)} (${c.b} → ${c.a})`);
+  return out;
+}
+
+/** Plain-text weekly summary for email / sharing. */
+export function weeklySummaryText(ctx: LifeContext, week: PeriodEval, prev: PeriodEval | null): string {
+  const lines: string[] = [];
+  lines.push(`Weekly review — w/c ${week.start}`);
+  lines.push(`Score: ${week.overall ?? 'insufficient data'}${prev?.overall != null && week.overall !== null ? ` (last week ${prev.overall})` : ''}`);
+  lines.push(`Habit adherence: ${week.habitAdherence === null ? '—' : pct(week.habitAdherence)} · ${week.loggedDays}/${week.elapsed} days logged`);
+  lines.push('');
+  const pats = weeklyPatterns(ctx, week, prev);
+  if (pats.length) {
+    lines.push('Patterns:');
+    for (const p of pats) lines.push(`• ${p}`);
+    lines.push('');
+  }
+  for (const i of weeklyInsights(ctx, week, prev)) lines.push(`${i.title}: ${i.body}`);
+  const flags = detectGaming(ctx);
+  if (flags.length) {
+    lines.push('');
+    for (const f of flags) lines.push(`⚠ ${f.title}: ${f.body}`);
+  }
+  return lines.join('\n');
 }

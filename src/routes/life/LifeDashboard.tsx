@@ -11,6 +11,7 @@ import { useLife } from '@/lib/life/useLife';
 import { LEVELS, MODE_LABELS, formatTarget, frequencyLabel } from '@/lib/life/habits';
 import { addDaysStr, evaluateWeek, habitStreaks, modeOn, pastWeeks, targetExtras, weekStartOf } from '@/lib/life/engine';
 import { db } from '@/lib/db';
+import { goalPace } from '@/lib/life/goalPace';
 import { goalProgress, todayHabits } from '@/lib/life/summary';
 import { detectGaming, weeklyInsights } from '@/lib/life/insights';
 import { calorieStatus, calorieUnlockStatus, recommendProgression } from '@/lib/life/progression';
@@ -44,6 +45,17 @@ export default function LifeDashboard() {
       gt: gt3rsReadiness(ctx.profile, ctx.finance),
       streaks: todayHabits(ctx).map((t) => ({ spec: t.spec, s: habitStreaks(ctx, t.spec) })),
       checkedIn: ctx.byDate.has(ctx.today),
+      paces: ctx.profile.goals
+        .filter((g) => g.tier === 'd90')
+        .map((g) => ({ g, p: goalPace(ctx, g) }))
+        .filter((x): x is { g: typeof x.g; p: NonNullable<typeof x.p> } => !!x.p),
+      // Sunday (or a catch-up Monday) with the week not yet reviewed.
+      reviewDue: (() => {
+        const dow = new Date(ctx.today + 'T12:00:00').getDay();
+        const wk = dow === 0 ? ws : dow === 1 ? addDaysStr(ws, -7) : null;
+        const p = wk ? ctx.planByWeek.get(wk) : undefined;
+        return wk !== null && !(p?.reviewedAt || p?.reflectionWorked || p?.reflectionDidnt || p?.reflectionChange);
+      })(),
       calUnlock: calorieUnlockStatus(ctx),
       calStatus: calorieStatus(ctx),
       yesterdayMissing: !ctx.byDate.has(addDaysStr(ctx.today, -1)) && addDaysStr(ctx.today, -1) >= ctx.profile.startDate,
@@ -133,6 +145,15 @@ export default function LifeDashboard() {
           </button>
         )}
 
+        {data.reviewDue && (
+          <Card className="p-4 border-info/40 cursor-pointer active:bg-base-850" onClick={() => navigate('/review')}>
+            <p className="text-sm font-semibold text-base-50 flex items-center gap-2">
+              <CalendarCheck size={15} className="text-info" /> Sunday review is due
+            </p>
+            <p className="text-xs text-base-400 mt-0.5">Under 10 minutes. It's the habit that holds the rest together →</p>
+          </Card>
+        )}
+
         {/* ONE thing */}
         <Card className="p-4 border-accent/30 bg-accent-bg/40">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-accent flex items-center gap-1.5">
@@ -219,6 +240,25 @@ export default function LifeDashboard() {
             <GoalBar key={b.key} label={b.label} value={b.value} formula={b.formula} detail={b.detail} color={b.key === 'gt3rs' ? COLORS.gold : undefined} />
           ))}
         </Card>
+
+        {data.paces.length > 0 && (
+          <Card className="p-4 cursor-pointer active:bg-base-850" onClick={() => navigate('/goals')}>
+            <p className="text-sm font-semibold text-base-50 mb-2">90-day goals — on pace?</p>
+            <div className="flex flex-col gap-1.5">
+              {data.paces.map(({ g, p }) => (
+                <div key={g.id} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-base-300 truncate">{g.title}</span>
+                  <span
+                    className="shrink-0 tabular-nums font-medium"
+                    style={{ color: p.status === 'done' || p.status === 'on-pace' ? COLORS.accent : p.status === 'in-progress' ? COLORS.info : COLORS.warn }}
+                  >
+                    {p.current}/{p.metric.target} {p.status === 'behind' ? '· behind' : p.status === 'on-pace' ? '· on pace' : p.status === 'done' ? '✓' : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* GT3 RS teaser */}
         <Card className="p-4 cursor-pointer active:bg-base-850" onClick={() => navigate('/finance')}>

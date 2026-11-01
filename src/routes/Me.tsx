@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Scale, Camera, CalendarDays, Dumbbell, History, Settings, ChevronRight, Search, LayoutGrid, LineChart, Gauge, Layers, TrendingUp } from 'lucide-react';
+import { Scale, Camera, CalendarDays, Dumbbell, History, Settings, ChevronRight, Search, LayoutGrid, LineChart, Gauge, Layers, TrendingUp, Wrench } from 'lucide-react';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
 
@@ -15,6 +15,7 @@ const ITEMS = [
   { to: '/exercises', icon: Dumbbell, label: 'Exercise Library', desc: 'Browse & edit exercises' },
   { to: '/history', icon: History, label: 'Workout History', desc: 'Every completed session' },
   { to: '/search', icon: Search, label: 'Search', desc: 'Find exercises, workouts, PRs' },
+  { to: '/cleanup', icon: Wrench, label: 'Data clean-up', desc: 'Merge duplicates, fix broken sessions' },
   { to: '/settings', icon: Settings, label: 'Settings', desc: 'Units, reminders, backup' },
 ];
 

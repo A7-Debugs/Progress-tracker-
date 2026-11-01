@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { AlertTriangle, ChevronLeft, ChevronRight, Lightbulb, Save } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Lightbulb, Mail, Save, Share2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toaster';
 import { Collapsible, GoalBar, Ring, Scale5, SectionTitle } from '@/components/life/Visuals';
 import { DOMAIN_LABELS, HABITS, LEVELS, MODE_LABELS, formatTarget, frequencyLabel, isUnlocked, targetFor } from '@/lib/life/habits';
 import { addDaysStr, evaluateWeek, strengthTrend, targetExtras, weekStartOf, type LifeContext } from '@/lib/life/engine';
-import { correlations, detectGaming, frictionReports, weekNarrative, weeklyInsights } from '@/lib/life/insights';
+import { correlations, detectGaming, frictionReports, weekNarrative, weeklyInsights, weeklyPatterns, weeklySummaryText } from '@/lib/life/insights';
 import { recommendMode, recommendProgression } from '@/lib/life/progression';
 import type { Domain, Level, Mode, WeekPlan } from '@/lib/life/types';
 import { cn } from '@/lib/cn';
@@ -31,6 +31,8 @@ export function WeekReview({ ctx }: { ctx: LifeContext }) {
       week,
       prev,
       narrative: weekNarrative(week, prev),
+      patterns: weeklyPatterns(ctx, week, prev),
+      summary: weeklySummaryText(ctx, week, prev),
       insights: weeklyInsights(ctx, week, prev),
       corr: correlations(ctx),
       flags: detectGaming(ctx),
@@ -155,6 +157,35 @@ export function WeekReview({ ctx }: { ctx: LifeContext }) {
             <Line label="Highest impact" items={narrative.highestImpact ? [narrative.highestImpact] : []} empty="No habit changed by 10+ points." />
           </>
         )}
+      </Card>
+
+      <Card className="p-4">
+        <p className="text-sm font-semibold text-base-50">Patterns this week</p>
+        {d.patterns.length ? (
+          <ul className="mt-1.5 flex flex-col gap-0.5">
+            {d.patterns.map((p) => (
+              <li key={p} className="text-xs text-base-200">• {p}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-base-500 mt-1">No notable changes vs last week (or not enough data in one of the weeks).</p>
+        )}
+        <div className="flex gap-2 mt-3">
+          <a
+            className="flex-1"
+            href={`mailto:?subject=${encodeURIComponent(`Weekly review — w/c ${ws}`)}&body=${encodeURIComponent(d.summary)}`}
+          >
+            <Button size="sm" variant="secondary" className="w-full">
+              <Mail size={14} /> Email me this summary
+            </Button>
+          </a>
+          {typeof navigator !== 'undefined' && 'share' in navigator && (
+            <Button size="sm" variant="secondary" onClick={() => navigator.share({ title: 'Weekly review', text: d.summary }).catch(() => {})}>
+              <Share2 size={14} /> Share
+            </Button>
+          )}
+        </div>
+        <p className="text-[11px] text-base-500 mt-1.5">Your data stays on your phone, so the app can't send email by itself. This opens your mail app with the summary filled in.</p>
       </Card>
 
       <div className="flex flex-col gap-2">
@@ -290,7 +321,7 @@ function NextWeek({ ctx, reviewed, reviewedPlan, rec }: { ctx: LifeContext; revi
       ...p,
       updatedAt: now,
     });
-    await db.weekPlans.put({ ...base(reviewed, reviewedPlan), ...refl });
+    await db.weekPlans.put({ ...base(reviewed, reviewedPlan), ...refl, reviewedAt: now });
     await db.weekPlans.put({ ...base(next, existing), ...inputs, mode: chosen, focus: focus.trim() || rec });
     if (applyProg && (prog.nextLevel !== ctx.profile.level || prog.nextPhase !== ctx.profile.phase)) {
       const p = ctx.profile;

@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, GripVertical, MoreVertical, Copy, Trash2, ArrowUp, ArrowDown, Play } from 'lucide-react';
 import { db } from '@/lib/db';
-import { newId, todayStr } from '@/lib/id';
+import { newId } from '@/lib/id';
+import { startOrResumeSession } from '@/lib/sessions';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -94,19 +95,7 @@ export default function ProgramDetail() {
   }
 
   async function startSession(workoutId: string, workoutName: string) {
-    const id = newId();
-    await db.sessions.add({
-      id,
-      workoutTemplateId: workoutId,
-      workoutName,
-      programId: currentProgram.id,
-      programName: currentProgram.name,
-      date: todayStr(),
-      startedAt: Date.now(),
-      completedAt: null,
-      notes: '',
-      bodyweight: null,
-    });
+    const id = await startOrResumeSession({ workoutId, workoutName, programId: currentProgram.id, programName: currentProgram.name });
     navigate(`/session/${id}`);
   }
 

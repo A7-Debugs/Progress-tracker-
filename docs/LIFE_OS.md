@@ -33,7 +33,7 @@ Code: `src/lib/life/` (engine, habits, progression, insights, finance) and `src/
 | **Plan tomorrow** | Write tomorrow's top 3 | Top 3 + time-blocked calendar | 5x/week | 2–10 min | 1/5 | 4/5 | Straight after dinner / closing the laptop | One tap |
 | **Weekly money check** | Check balances + last week's spending | …and update the snapshot | 1x/week | 5–15 min | 1/5 | 4/5 | Sunday review | Toggle, or ticks itself when a snapshot is saved |
 
-Protein targets follow your latest weigh-in (1.6 / 2.0 g/kg, rounded to 5 g). With no weigh-in, or with auto turned off in The System → Nutrition, the manual values (default 140 / 180 g) are used.
+Protein targets follow your latest weigh-in (1.8 / 2.0 g/kg, rounded to 5 g; ≈140 g at 78 kg). With no weigh-in, or with auto turned off in The System → Nutrition, the manual values (default 140 / 160 g) are used. The minimum is the real target: the food-log ring fills at the minimum, and the ideal is a stretch.
 
 **Why these eight:** they cover every long-term goal with the least friction. Sleep multiplies everything else, and the morning light walk anchors it: daylight soon after waking sets the body clock for better sleep, energy and mood. Training and protein are the whole physique goal at this stage. Steps are cheap health. Deep work is the engine of earning power (ACCA, Excel, modelling, AI) and so of financial freedom. Planning takes two minutes and removes tomorrow's decisions. The money check makes finances something you look at every week. Relationships are **tracked** from day one (a toggle in the check-in, feeding the Relationships score) but only become a scheduled habit at Level 4.
 
@@ -181,3 +181,60 @@ The GT3 RS is treated as a symbol of financial independence, not a purchase targ
 **New flags**
 - **Calorie totals are incomplete:** at least 20% of food entries in 3 weeks have no calories.
 - **Calories and weight disagree:** you're on target but weight moves the wrong way for your goal. This usually means food isn't being logged, or maintenance has shifted; re-estimate in The System.
+
+---
+
+## 9. Training rules and data quality
+
+**Progression rule for every lift** (shown as "Next:" in each workout and on the Train tab):
+- Every working set at the top of the rep range last session → add the smallest increment (2.5 kg; 2 kg for dumbbells).
+- No new estimated-1RM high for 3 sessions (counted from the last deload) → drop 10% (rounded down) and build back up.
+- Otherwise keep the weight and add reps.
+
+**Minimum Mode training** holds at 3 sessions a week. A 25-minute full-body session counts as the minimum.
+
+**Sessions**
+- **Left open:** sessions with no activity for 90 minutes are ended automatically at the last set + 5 minutes.
+- **Finishing:** with nothing logged, the session is discarded. With 1 set in under 10 minutes, the app asks first.
+- **Restarting:** starting the same workout within an hour of finishing it offers to continue the earlier session.
+- **Clean-up** (Me → Data clean-up) lists, for you to approve:
+  - sessions left running (trim to the last set)
+  - near-empty sessions (delete)
+  - one workout split into two sessions on the same day (merge)
+  - likely duplicate exercises (merge, keeping either name, or dismiss)
+  - logged history whose exercise was deleted (restore)
+- **Automatic repairs** on start-up: exact duplicate rows in a workout template (double-tap saves) are removed, and exercises named "Boxing" become timed exercises under Cardio.
+
+**Exercises**
+- **Timed exercises** (boxing, conditioning) are logged as rounds × minutes.
+- **Merge into…** on any exercise page moves all of its history and template slots to another exercise.
+- **RPE** is asked once per exercise, on the last working set, and only where the template sets an RPE target.
+
+**One record per measurement**
+- Sleep, mood and energy are entered only in the check-in.
+- Protein and calories are entered only in the food log.
+- The Bodyweight log keeps weight, body fat and water, and shows the rest read-only.
+- Check-ins pick up workout minutes from finished gym sessions, and protein from the food log.
+
+**Food entries:** tap any entry to add missing calories, link it to a saved food, or save it as a new food.
+
+**Estimated calorie burn:** a rolling 28-day figure, calculated as average logged intake − (weight trend × 7,700 kcal/kg ÷ days). The weight trend is a least-squares fit through your weigh-ins. Days logged at under half your typical intake are treated as partial and excluded. It's shown in the food log and in Trends whether or not calorie targets are unlocked, and three or more partial days in two weeks raises a flag.
+
+**Weekly patterns**
+- The weekly review lists week-on-week changes in stress, gym days, protein days, sleep, deep work, energy and your most-changed foods.
+- **Email me this summary** opens your mail app with the summary filled in. The app has no server, so it can't send email itself.
+
+**Goal pacing**
+- Goals can carry a tracker: weekly reviews, weeks in a row at ≥ 85%, training sessions, deep-work hours, finance snapshots, months at the savings target, protein days, connection days or FI %. Each has a target and a deadline.
+- The starter 90-day and 1-year goals come with trackers. Progress is shown as "x of y", on pace or behind, where pace is the target × time elapsed.
+
+**Reminders**
+- In-app daily check-in and Sunday review reminders, plus the existing workout reminder.
+- **Add reminders to my phone's calendar** downloads repeating calendar alarms. These are the reliable option, because a web app can't wake itself when it's closed.
+
+**Finance**
+- **Property contributions** (overpayments, deposit saving, buy-to-let costs) count towards your investing rate.
+- **Snapshot month:** the dialog states which month a snapshot covers. Early in a month (day 1–10), new snapshots default to the previous month.
+- **Swing warnings:** values that change by more than 50% from the previous month are flagged, both in the dialog and in the list.
+- **Emergency fund months** are shown automatically, using total spending if essential spending is blank.
+- **FI prompt:** a card asks for your yearly spending in financial independence until it's set.

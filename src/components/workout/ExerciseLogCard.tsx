@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
-import { Copy, Plus, Trash2, Trophy, TrendingUp, TrendingDown } from 'lucide-react';
+import { Copy, Plus, Trash2, Trophy, TrendingUp, TrendingDown, ArrowUpRight, RotateCcw, Target } from 'lucide-react';
 import { db } from '@/lib/db';
 import { newId } from '@/lib/id';
 import { NumberField } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { compareToHistory, groupBySession, formatDelta } from '@/lib/calculations';
+import { formatSet, suggestNext } from '@/lib/workoutRules';
+import { cn } from '@/lib/cn';
 import type { ExerciseDef, SetLog, WorkoutExercise } from '@/lib/types';
 
 interface Row {
@@ -48,8 +50,13 @@ export function ExerciseLogCard({
     [allSets, sessionId],
   );
 
+  const timed = def.kind === 'timed';
   const [rows, setRows] = useState<Row[]>([]);
   const [seeded, setSeeded] = useState(false);
+  const suggestion = useMemo(
+    () => suggestNext(def, workoutExercise.targetRepLow, workoutExercise.targetRepHigh, priorSets),
+    [def, workoutExercise.targetRepLow, workoutExercise.targetRepHigh, priorSets],
+  );
 
   useEffect(() => {
     if (seeded || allSets === undefined) return;
@@ -61,7 +68,7 @@ export function ExerciseLogCard({
         key: existing?.id ?? `new-${i}`,
         dbId: existing?.id ?? null,
         weight: existing ? String(existing.weight) : '',
-        reps: existing ? String(existing.reps) : '',
+        reps: existing ? (existing.durationSec != null ? String(existing.durationSec / 60) : String(existing.reps)) : '',
         isWarmup: existing?.isWarmup ?? false,
       });
     }
@@ -111,6 +118,21 @@ export function ExerciseLogCard({
 
   /** Write a single row's weight/reps to IndexedDB and reconcile its dbId. */
   async function commitRowData(idx: number, row: Row) {
+    if (timed) {
+      const minutes = Number(row.reps) || 0;
+      if (minutes <= 0) {
+        if (row.dbId) await db.setLogs.delete(row.dbId);
+        return null;
+      }
+      const durationSec = Math.round(minutes * 60);
+      if (row.dbId) {
+        await db.setLogs.update(row.dbId, { weight: 0, reps: 1, durationSec, setNumber: idx + 1 });
+        return row.dbId;
+      }
+      const id = newId();
+      await db.setLogs.add({ id, sessionId, exerciseDefId: def.id, exerciseName: def.name, setNumber: idx + 1, weight: 0, reps: 1, durationSec, rpe: null, isWarmup: false, createdAt: Date.now() });
+      return id;
+    }
     const weight = Number(row.weight) || 0;
     const reps = Number(row.reps) || 0;
     if (weight <= 0 || reps <= 0) {
@@ -161,12 +183,13 @@ export function ExerciseLogCard({
     const working = lastGroup.sets.filter((s) => !s.isWarmup);
     const next = [...rows];
     working.forEach((s, i) => {
+      const reps = s.durationSec != null ? String(s.durationSec / 60) : String(s.reps);
       if (i < next.length) {
         if (!next[i].weight && !next[i].reps) {
-          next[i] = { ...next[i], weight: String(s.weight), reps: String(s.reps) };
+          next[i] = { ...next[i], weight: String(s.weight), reps };
         }
       } else {
-        next.push({ key: `copy-${i}-${Date.now()}`, dbId: null, weight: String(s.weight), reps: String(s.reps), isWarmup: false });
+        next.push({ key: `copy-${i}-${Date.now()}`, dbId: null, weight: String(s.weight), reps, isWarmup: false });
       }
     });
     setRows(next);
@@ -182,8 +205,9 @@ export function ExerciseLogCard({
             {def.name}
           </Link>
           <p className="text-xs text-base-400 mt-0.5">
-            Target: {workoutExercise.targetSets} × {workoutExercise.targetRepLow}-{workoutExercise.targetRepHigh}
-            {workoutExercise.rpeTarget ? ` @ RPE ${workoutExercise.rpeTarget}` : ''}
+            {timed
+              ? `Target: ${workoutExercise.targetSets} rounds × ${workoutExercise.targetRepLow === workoutExercise.targetRepHigh ? workoutExercise.targetRepLow : `${workoutExercise.targetRepLow}-${workoutExercise.targetRepHigh}`} min`
+              : `Target: ${workoutExercise.targetSets} × ${workoutExercise.targetRepLow}-${workoutExercise.targetRepHigh}${workoutExercise.rpeTarget ? ` @ RPE ${workoutExercise.rpeTarget}` : ''}`}
           </p>
         </div>
         {comparison && (comparison.isNewPRWeight || comparison.isNewPR1RM || comparison.isNewPRVolume) && (
@@ -206,15 +230,28 @@ export function ExerciseLogCard({
           <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-base-400">
             <span className="text-base-500 font-medium">Last:</span>
             {lastGroup.sets.filter((s) => !s.isWarmup).map((s) => (
-              <span key={s.id}>
-                {s.weight}kg×{s.reps}
-              </span>
+              <span key={s.id}>{formatSet(s)}</span>
             ))}
           </div>
           <Copy size={14} className="text-accent shrink-0 ml-2" />
         </button>
       ) : (
         <p className="text-xs text-base-500 mb-2">No previous data — first time logging this exercise.</p>
+      )}
+
+      {suggestion && (
+        <div
+          className={cn(
+            'flex items-start gap-1.5 rounded-xl px-3 py-2 mb-2 text-xs',
+            suggestion.kind === 'deload' ? 'bg-warn/10 text-warn' : suggestion.kind === 'add' ? 'bg-accent-bg text-accent' : 'bg-base-850 text-base-300',
+          )}
+        >
+          {suggestion.kind === 'deload' ? <RotateCcw size={13} className="mt-px shrink-0" /> : suggestion.kind === 'add' ? <ArrowUpRight size={13} className="mt-px shrink-0" /> : <Target size={13} className="mt-px shrink-0" />}
+          <span>
+            <span className="font-semibold">Next: </span>
+            {suggestion.message}
+          </span>
+        </div>
       )}
 
       {comparison && comparison.weightDelta !== 0 && (
@@ -225,21 +262,23 @@ export function ExerciseLogCard({
       )}
 
       <div className="flex flex-col gap-1.5">
-        <div className="grid grid-cols-[1.5rem_1fr_1fr_1.75rem] gap-2 px-1 text-[11px] font-medium text-base-500">
-          <span>Set</span>
-          <span>Weight (kg)</span>
-          <span>Reps</span>
+        <div className={cn('grid gap-2 px-1 text-[11px] font-medium text-base-500', timed ? 'grid-cols-[1.5rem_1fr_1.75rem]' : 'grid-cols-[1.5rem_1fr_1fr_1.75rem]')}>
+          <span>{timed ? 'Rd' : 'Set'}</span>
+          {!timed && <span>Weight (kg)</span>}
+          <span>{timed ? 'Minutes' : 'Reps'}</span>
           <span />
         </div>
         {rows.map((row, idx) => (
-          <div key={row.key} className="grid grid-cols-[1.5rem_1fr_1fr_1.75rem] gap-2 items-center">
+          <div key={row.key} className={cn('grid gap-2 items-center', timed ? 'grid-cols-[1.5rem_1fr_1.75rem]' : 'grid-cols-[1.5rem_1fr_1fr_1.75rem]')}>
             <span className="text-sm font-semibold text-base-400 text-center">{idx + 1}</span>
-            <NumberField
-              placeholder="0"
-              value={row.weight}
-              onChange={(e) => persist(idx, { weight: e.target.value })}
-              onBlur={() => commitRow(idx, rows[idx])}
-            />
+            {!timed && (
+              <NumberField
+                placeholder={suggestion && !row.weight ? String(suggestion.weight) : '0'}
+                value={row.weight}
+                onChange={(e) => persist(idx, { weight: e.target.value })}
+                onBlur={() => commitRow(idx, rows[idx])}
+              />
+            )}
             <NumberField
               placeholder="0"
               value={row.reps}
@@ -257,8 +296,33 @@ export function ExerciseLogCard({
         ))}
       </div>
       <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={addRow}>
-        <Plus size={14} /> Add set
+        <Plus size={14} /> {timed ? 'Add round' : 'Add set'}
       </Button>
+      {!timed && workoutExercise.rpeTarget && <LastSetRpe rows={rows} sets={allSets ?? []} target={workoutExercise.rpeTarget} />}
+    </div>
+  );
+}
+
+/** One question per exercise instead of RPE on every set: how hard was the last working set? */
+function LastSetRpe({ rows, sets, target }: { rows: Row[]; sets: SetLog[]; target: number }) {
+  const last = [...rows].reverse().find((r) => r.dbId && !r.isWarmup);
+  if (!last?.dbId) return null;
+  const current = sets.find((s) => s.id === last.dbId)?.rpe ?? null;
+  return (
+    <div className="mt-2 flex items-center gap-1.5">
+      <span className="text-[11px] text-base-500 shrink-0">Last set RPE (target {target})</span>
+      {[6, 7, 8, 9, 10].map((v) => (
+        <button
+          key={v}
+          onClick={() => db.setLogs.update(last.dbId!, { rpe: current === v ? null : v })}
+          className={cn(
+            'h-7 w-7 rounded-lg text-xs font-semibold border',
+            current === v ? 'bg-accent text-base-950 border-accent' : 'bg-base-850 text-base-400 border-base-700',
+          )}
+        >
+          {v}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subMonths } from 'date-fns';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { todayStr } from '@/lib/id';
@@ -13,7 +13,8 @@ import { useToast } from '@/components/ui/Toaster';
 import { Collapsible, GoalBar, Ring, SectionTitle, Stat } from '@/components/life/Visuals';
 import { COLORS } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
-import { derive, fiStatus, gt3rsReadiness } from '@/lib/life/finance';
+import { derive, emergencyFundMonths, fiStatus, gt3rsReadiness } from '@/lib/life/finance';
+import { AlertTriangle } from 'lucide-react';
 import type { FinanceSnapshot, LifeProfile } from '@/lib/life/types';
 
 type NumKey = Exclude<keyof FinanceSnapshot, 'id' | 'month' | 'notes' | 'createdAt' | 'updatedAt'>;
@@ -24,6 +25,7 @@ const FIELDS: { key: NumKey; label: string; hint: string; group: 'flow' | 'asset
   { key: 'essentialSpending', label: 'Essential spending', hint: 'Housing, bills, food, transport', group: 'flow' },
   { key: 'housingCost', label: 'Rent / mortgage payment', hint: 'Monthly housing cost', group: 'flow' },
   { key: 'invested', label: 'Invested this month', hint: 'ISA, pension top-ups, etc.', group: 'flow' },
+  { key: 'propertyContribution', label: 'Property contributions', hint: 'Overpayments, deposit saving, BTL costs', group: 'flow' },
   { key: 'cash', label: 'Cash & savings', hint: 'Current + general savings', group: 'assets' },
   { key: 'emergencyFund', label: 'Emergency fund', hint: 'Ring-fenced', group: 'assets' },
   { key: 'carFund', label: 'GT3 RS fund', hint: 'Ring-fenced car savings', group: 'assets' },
@@ -43,6 +45,7 @@ const emptySnap = (month: string): FinanceSnapshot => ({
   essentialSpending: null,
   housingCost: null,
   invested: null,
+  propertyContribution: null,
   cash: null,
   emergencyFund: null,
   carFund: null,
@@ -81,7 +84,9 @@ export default function Finance() {
   const money = (x: number | null | undefined) => (x == null ? '—' : `${cur}${Math.round(x).toLocaleString()}`);
 
   function startNew() {
-    const month = todayStr().slice(0, 7);
+    // Early in a month you're usually closing off the previous one (e.g. entering October on 1 Nov).
+    const today = todayStr();
+    const month = Number(today.slice(8, 10)) <= 10 ? format(subMonths(parseISO(today), 1), 'yyyy-MM') : today.slice(0, 7);
     const existing = ctx!.finance.find((f) => f.month === month);
     // Carry balances forward from the last snapshot so a monthly update takes seconds.
     const last = ctx!.finance[ctx!.finance.length - 1];
@@ -100,7 +105,7 @@ export default function Finance() {
     await db.financeSnapshots.delete(id);
   }
 
-  const efMonths = d.latest && d.essentials ? (d.latest.emergencyFund ?? 0) / d.essentials : null;
+  const ef = emergencyFundMonths(ctx.finance);
 
   return (
     <div className="animate-fade-in">
@@ -130,9 +135,23 @@ export default function Finance() {
               <Stat label="Invested" value={money(d.derived!.fiAssets)} sub="Investments + pension + BTL" />
               <Stat label="Savings rate" value={d.derived!.savingsRate === null ? '—' : `${Math.round(d.derived!.savingsRate * 100)}%`} sub={`Target ${Math.round(profile.savingsRateTarget * 100)}%`} />
               <Stat label="Monthly surplus" value={money(d.derived!.surplus)} sub="After spending & investing" />
-              <Stat label="Emergency fund" value={efMonths === null ? '—' : `${efMonths.toFixed(1)} mo`} sub={`Target ${profile.emergencyMonths} months`} />
+              <Stat
+                label="Emergency fund"
+                value={ef === null ? '—' : `${ef.months.toFixed(1)} mo`}
+                sub={ef === null ? 'Add EF balance + spending' : `of ${ef.basis} spending · target ${profile.emergencyMonths}`}
+              />
             </div>
           </>
+        )}
+
+        {profile.fiAnnualSpend === null && (
+          <Card className="p-4 border-warn/30">
+            <p className="text-sm font-semibold text-base-50">Set your yearly spending in financial independence</p>
+            <p className="text-xs text-base-400 mt-0.5">
+              The FI number is that figure ÷ {Math.round(profile.withdrawalRate * 100)}%. {d.fi.annualSpend ? `Right now it's guessed from your last 3 months (${money(d.fi.annualSpend)}/yr), which swings with one-off costs.` : "Without it the app can't measure your progress."}
+            </p>
+            <FiSpendInput current={d.fi.annualSpend} />
+          </Card>
         )}
 
         <SectionTitle>Financial independence</SectionTitle>
@@ -201,10 +220,20 @@ export default function Finance() {
         <SectionTitle right={<button onClick={startNew} className="text-xs text-accent">+ Snapshot</button>}>Monthly snapshots</SectionTitle>
         {[...ctx.finance].reverse().map((s) => {
           const x = derive(s);
+          const prev = ctx.finance.filter((f) => f.month < s.month).pop();
+          const sw = prev ? swings(s, prev) : [];
           return (
             <Card key={s.id} className="p-3.5 flex items-center justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-base-100">{format(parseISO(`${s.month}-01`), 'MMMM yyyy')}</p>
+                <p className="text-sm font-semibold text-base-100">
+                  {format(parseISO(`${s.month}-01`), 'MMMM yyyy')}
+                  <span className="text-[11px] text-base-500 font-normal"> · entered {format(new Date(s.createdAt || s.updatedAt), 'd MMM')}</span>
+                </p>
+                {sw.length > 0 && (
+                  <p className="text-[11px] text-warn flex items-center gap-1">
+                    <AlertTriangle size={11} /> {sw.length} value{sw.length === 1 ? '' : 's'} changed by &gt;50% — check
+                  </p>
+                )}
                 <p className="text-xs text-base-400">
                   NW {money(x.netWorth)} · saved {x.savingsRate === null ? '—' : `${Math.round(x.savingsRate * 100)}%`} · invested {money(s.invested)}
                 </p>
@@ -228,13 +257,29 @@ export default function Finance() {
         </Card>
       </div>
 
-      {editing && <SnapshotDialog snap={editing} currency={cur} onClose={() => setEditing(null)} onSave={saveSnap} />}
+      {editing && <SnapshotDialog snap={editing} all={ctx.finance} currency={cur} onClose={() => setEditing(null)} onSave={saveSnap} />}
     </div>
   );
 }
 
-function SnapshotDialog({ snap, currency, onClose, onSave }: { snap: FinanceSnapshot; currency: string; onClose: () => void; onSave: (s: FinanceSnapshot, originalId: string) => void }) {
+function SnapshotDialog({
+  snap,
+  all,
+  currency,
+  onClose,
+  onSave,
+}: {
+  snap: FinanceSnapshot;
+  all: FinanceSnapshot[];
+  currency: string;
+  onClose: () => void;
+  onSave: (s: FinanceSnapshot, originalId: string) => void;
+}) {
   const [s, setS] = useState(snap);
+  const prev = all.filter((f) => f.month < s.month).pop();
+  const sw = new Map((prev ? swings(s, prev) : []).map((x) => [x.key, x]));
+  const essential = s.essentialSpending || s.spending;
+  const efLive = s.emergencyFund != null && essential ? s.emergencyFund / essential : null;
   const group = (g: (typeof FIELDS)[number]['group'], title: string) => (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-base-500 mb-2">{title}</p>
@@ -246,6 +291,15 @@ function SnapshotDialog({ snap, currency, onClose, onSave }: { snap: FinanceSnap
             </label>
             <Input type="number" inputMode="decimal" value={s[f.key] ?? ''} onChange={(e) => setS({ ...s, [f.key]: e.target.value === '' ? null : Number(e.target.value) })} />
             <span className="text-[10px] text-base-500">{f.hint}</span>
+            {sw.get(f.key) && (
+              <span className="text-[10px] text-warn">
+                ⚠ {sw.get(f.key)!.pct > 0 ? '+' : ''}
+                {Math.round(sw.get(f.key)!.pct * 100)}% vs {format(parseISO(`${prev!.month}-01`), 'MMM')} ({currency}
+                {Math.round(sw.get(f.key)!.from).toLocaleString()} → {currency}
+                {Math.round(sw.get(f.key)!.to).toLocaleString()}) — typo?
+              </span>
+            )}
+            {f.key === 'emergencyFund' && efLive !== null && <span className="text-[10px] text-accent">= {efLive.toFixed(1)} months of {s.essentialSpending ? 'essential' : 'total'} spending</span>}
           </div>
         ))}
       </div>
@@ -255,8 +309,11 @@ function SnapshotDialog({ snap, currency, onClose, onSave }: { snap: FinanceSnap
     <Dialog open onOpenChange={(o) => !o && onClose()} title="Monthly snapshot" description="Balances carry forward from last month — just update what changed.">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-base-300">Month</label>
+          <label className="text-xs font-medium text-base-300">Which month does this snapshot cover?</label>
           <Input type="month" value={s.month} onChange={(e) => setS({ ...s, month: e.target.value, id: e.target.value })} />
+          <span className="text-[11px] text-base-400">
+            Covers <span className="text-base-100 font-medium">{s.month ? format(parseISO(`${s.month}-01`), 'MMMM yyyy') : '—'}</span>: income and spending for that month, balances at its end.
+          </span>
         </div>
         {group('flow', 'This month')}
         {group('assets', 'Assets (balances)')}
@@ -327,6 +384,31 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-base-400">{label}</label>
       {children}
+    </div>
+  );
+}
+
+/** Fields that moved by more than 50% vs the previous month (likely typos or one-offs worth checking). */
+function swings(cur: FinanceSnapshot, prev: FinanceSnapshot): { key: NumKey; from: number; to: number; pct: number }[] {
+  const out: { key: NumKey; from: number; to: number; pct: number }[] = [];
+  for (const f of FIELDS) {
+    const a = prev[f.key];
+    const b = cur[f.key];
+    if (a == null || b == null || Math.abs(a) < 100) continue;
+    const pct = (b - a) / Math.abs(a);
+    if (Math.abs(pct) > 0.5) out.push({ key: f.key, from: a, to: b, pct });
+  }
+  return out;
+}
+
+function FiSpendInput({ current }: { current: number | null }) {
+  const [v, setV] = useState(current ? String(Math.round(current / 1000) * 1000) : '');
+  return (
+    <div className="flex gap-2 mt-2">
+      <Input type="number" inputMode="numeric" placeholder="e.g. 36000" value={v} onChange={(e) => setV(e.target.value)} />
+      <Button onClick={() => Number(v) > 0 && db.lifeProfile.update('life', { fiAnnualSpend: Number(v) })} disabled={!(Number(v) > 0)}>
+        Save
+      </Button>
     </div>
   );
 }
