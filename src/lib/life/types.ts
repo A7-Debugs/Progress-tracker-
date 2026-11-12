@@ -54,6 +54,8 @@ export interface DailyCheckin {
   /** Minutes-based unlockable habits (mobility). */
   minutes: Partial<Record<HabitId, number>>;
   commitments: string;
+  /** Ill today: habits aren't scheduled, so the day can't count as a miss, break a streak or trigger a deload. */
+  sick?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -88,6 +90,8 @@ export interface FinanceSnapshot {
   housingCost: number | null; // rent or mortgage payment
   invested: number | null; // contributions to investments/pension this month
   propertyContribution?: number | null; // mortgage overpayments / deposit saving / BTL costs this month
+  /** True when `spending` already includes the invested + property amounts (so they aren't counted twice). */
+  spendingIncludesContributions?: boolean;
   cash: number | null; // current account + general savings
   emergencyFund: number | null; // ring-fenced
   carFund: number | null; // ring-fenced GT3 RS fund
@@ -96,7 +100,9 @@ export interface FinanceSnapshot {
   homeValue: number | null;
   mortgage: number | null;
   investmentPropertyEquity: number | null;
-  otherDebt: number | null; // cards, loans, car finance, student loan (if you choose)
+  otherDebt: number | null; // cards, loans, car finance
+  /** UK-style income-contingent student loan: in net worth, but not treated as consumer debt. */
+  studentLoan?: number | null;
   notes: string;
   createdAt: number;
   updatedAt: number;

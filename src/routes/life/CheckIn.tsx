@@ -134,6 +134,15 @@ export default function CheckIn() {
           </button>
         </div>
 
+        <Card className={form.sick ? 'p-4 border-warn/40 bg-warn/5' : 'p-4'}>
+          <Toggle
+            label="I'm ill today"
+            sub={form.sick ? 'Habits are paused today: this day can’t count as a miss, break a streak or trigger a deload. Rest.' : 'Turn on when you’re genuinely unwell'}
+            checked={!!form.sick}
+            onChange={(v) => setForm((f) => ({ ...f, sick: v }))}
+          />
+        </Card>
+
         <Q title="Sleep" sub={sched.sleep ? `Min ${sched.sleep.label.min} · Ideal ${sched.sleep.label.ideal}` : undefined}>
           <div className="flex gap-2 items-center">
             <Input type="number" inputMode="decimal" step="0.25" placeholder="hours" value={form.sleepHours ?? ''} onChange={(e) => set('sleepHours', toNum(e.target.value))} className="w-24 text-center" />
@@ -142,7 +151,7 @@ export default function CheckIn() {
         </Q>
 
         {sched.morningWalk && (
-          <Q title="Morning light walk" sub={`Min ${sched.morningWalk.label.min} · Ideal ${sched.morningWalk.label.ideal}`}>
+          <Q title="Daylight walk (before ~1pm)" sub={`Min ${sched.morningWalk.label.min} · Ideal ${sched.morningWalk.label.ideal}`}>
             <Chips
               values={[0, 5, 10, 15, 20, 30]}
               current={form.minutes.morningWalk ?? null}
@@ -227,14 +236,17 @@ export default function CheckIn() {
           <Toggle label="Weekly money check done" sub="Once a week (auto-ticks when you update a finance snapshot)" checked={form.habits.moneyReview === 'ideal'} onChange={(v) => setBool('moneyReview', v)} />
         </Card>
 
-        <Q title="Energy">
-          <Scale5 value={form.energy} onChange={(v) => set('energy', v)} low="Drained" high="Charged" />
+        <Q title="Energy" sub="How you felt across the day">
+          <Scale5 value={form.energy} onChange={(v) => set('energy', v)} />
+          <Anchors labels={['Drained', 'Low', 'Normal', 'Good', 'Excellent']} />
         </Q>
         <Q title="Mood">
-          <Scale5 value={form.mood} onChange={(v) => set('mood', v)} low="Low" high="Great" />
+          <Scale5 value={form.mood} onChange={(v) => set('mood', v)} />
+          <Anchors labels={['Very low', 'Low', 'Normal', 'Good', 'Great']} />
         </Q>
         <Q title="Stress">
-          <Scale5 value={form.stress} onChange={(v) => set('stress', v)} low="Calm" high="Overloaded" />
+          <Scale5 value={form.stress} onChange={(v) => set('stress', v)} />
+          <Anchors labels={['Calm', 'Mild', 'Normal', 'High', 'Overloaded']} />
         </Q>
 
         <Card className="p-4">
@@ -296,6 +308,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-base-400">{label}</label>
       {children}
+    </div>
+  );
+}
+
+/** Spells out what each number means, so "3" is a normal day rather than a vague middle. */
+function Anchors({ labels }: { labels: string[] }) {
+  return (
+    <div className="grid grid-cols-5 gap-1.5 -mt-0.5">
+      {labels.map((l, i) => (
+        <span key={l} className={`text-[10px] text-center ${i === 2 ? 'text-base-300' : 'text-base-500'}`}>
+          {l}
+        </span>
+      ))}
     </div>
   );
 }

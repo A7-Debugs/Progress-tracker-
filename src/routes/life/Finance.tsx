@@ -13,11 +13,11 @@ import { useToast } from '@/components/ui/Toaster';
 import { Collapsible, GoalBar, Ring, SectionTitle, Stat } from '@/components/life/Visuals';
 import { COLORS } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
-import { derive, emergencyFundMonths, fiStatus, gt3rsReadiness } from '@/lib/life/finance';
+import { derive, emergencyFundMonths, fiStatus, gt3rsReadiness, looksDoubleCounted } from '@/lib/life/finance';
 import { AlertTriangle } from 'lucide-react';
 import type { FinanceSnapshot, LifeProfile } from '@/lib/life/types';
 
-type NumKey = Exclude<keyof FinanceSnapshot, 'id' | 'month' | 'notes' | 'createdAt' | 'updatedAt'>;
+type NumKey = Exclude<keyof FinanceSnapshot, 'id' | 'month' | 'notes' | 'createdAt' | 'updatedAt' | 'spendingIncludesContributions'>;
 
 const FIELDS: { key: NumKey; label: string; hint: string; group: 'flow' | 'assets' | 'liabilities' }[] = [
   { key: 'netIncome', label: 'Net income', hint: 'Take-home pay this month', group: 'flow' },
@@ -34,7 +34,8 @@ const FIELDS: { key: NumKey; label: string; hint: string; group: 'flow' | 'asset
   { key: 'homeValue', label: 'Home value', hint: 'Primary residence (0 if renting)', group: 'assets' },
   { key: 'investmentPropertyEquity', label: 'Investment property equity', hint: 'Buy-to-let value − its mortgage', group: 'assets' },
   { key: 'mortgage', label: 'Mortgage balance', hint: 'Primary residence', group: 'liabilities' },
-  { key: 'otherDebt', label: 'Other debt', hint: 'Cards, loans, car finance', group: 'liabilities' },
+  { key: 'otherDebt', label: 'Consumer debt', hint: 'Cards, loans, car finance', group: 'liabilities' },
+  { key: 'studentLoan', label: 'Student loan', hint: 'Income-contingent; not treated as consumer debt', group: 'liabilities' },
 ];
 
 const emptySnap = (month: string): FinanceSnapshot => ({
@@ -55,6 +56,7 @@ const emptySnap = (month: string): FinanceSnapshot => ({
   mortgage: null,
   investmentPropertyEquity: null,
   otherDebt: null,
+  studentLoan: null,
   notes: '',
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -130,7 +132,11 @@ export default function Finance() {
           <>
             <p className="text-xs text-base-500">Latest snapshot: {format(parseISO(`${d.latest.month}-01`), 'MMMM yyyy')}</p>
             <div className="grid grid-cols-2 gap-2">
-              <Stat label="Net worth" value={money(d.derived!.netWorth)} />
+              <Stat
+                label="Net worth"
+                value={money(d.derived!.netWorth)}
+                sub={d.latest.studentLoan ? `${money(d.derived!.netWorthExStudentLoan)} excl. student loan` : undefined}
+              />
               <Stat label="Liquid" value={money(d.derived!.liquid)} sub="Cash + EF + car fund" />
               <Stat label="Invested" value={money(d.derived!.fiAssets)} sub="Investments + pension + BTL" />
               <Stat label="Savings rate" value={d.derived!.savingsRate === null ? '—' : `${Math.round(d.derived!.savingsRate * 100)}%`} sub={`Target ${Math.round(profile.savingsRateTarget * 100)}%`} />
@@ -229,6 +235,16 @@ export default function Finance() {
                   {format(parseISO(`${s.month}-01`), 'MMMM yyyy')}
                   <span className="text-[11px] text-base-500 font-normal"> · entered {format(new Date(s.createdAt || s.updatedAt), 'd MMM')}</span>
                 </p>
+                {looksDoubleCounted(s) && (
+                  <p className="text-[11px] text-warn flex items-center gap-1">
+                    <AlertTriangle size={11} /> Spending may include investing/property — savings rate looks negative
+                  </p>
+                )}
+                {(s.otherDebt ?? 0) >= 20000 && !s.studentLoan && (
+                  <p className="text-[11px] text-warn flex items-center gap-1">
+                    <AlertTriangle size={11} /> Large consumer debt — if it's a student loan, edit and move it
+                  </p>
+                )}
                 {sw.length > 0 && (
                   <p className="text-[11px] text-warn flex items-center gap-1">
                     <AlertTriangle size={11} /> {sw.length} value{sw.length === 1 ? '' : 's'} changed by &gt;50% — check
@@ -316,8 +332,36 @@ function SnapshotDialog({
           </span>
         </div>
         {group('flow', 'This month')}
+        <label className="flex items-start gap-2 text-xs text-base-200 -mt-1">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-[#7ce281]"
+            checked={!!s.spendingIncludesContributions}
+            onChange={(e) => setS({ ...s, spendingIncludesContributions: e.target.checked })}
+          />
+          <span>Total spending already includes the invested and property amounts (take them out so they aren't counted twice)</span>
+        </label>
+        {looksDoubleCounted(s) && (
+          <p className="text-[11px] text-warn -mt-2">
+            ⚠ Spending ({currency}
+            {Math.round(s.spending ?? 0).toLocaleString()}) is more than income ({currency}
+            {Math.round(s.netIncome ?? 0).toLocaleString()}), but it isn't once the {currency}
+            {Math.round((s.invested ?? 0) + (s.propertyContribution ?? 0)).toLocaleString()} invested / put into property is removed. Does spending include them? If so, tick the box above.
+          </p>
+        )}
         {group('assets', 'Assets (balances)')}
         {group('liabilities', 'Liabilities')}
+        {(s.otherDebt ?? 0) >= 20000 && !s.studentLoan && (
+          <div className="rounded-xl border border-warn/40 bg-warn/5 p-3 -mt-2">
+            <p className="text-xs text-base-100">
+              Is the {currency}
+              {Math.round(s.otherDebt ?? 0).toLocaleString()} consumer debt actually a student loan? Student loans are repaid as a share of income, so the app treats them separately.
+            </p>
+            <Button size="sm" variant="secondary" className="mt-2" onClick={() => setS({ ...s, studentLoan: s.otherDebt, otherDebt: 0 })}>
+              Yes — move it to Student loan
+            </Button>
+          </div>
+        )}
         <Textarea rows={2} placeholder="Notes" value={s.notes} onChange={(e) => setS({ ...s, notes: e.target.value })} />
         <Button onClick={() => onSave(s, snap.id)} disabled={!s.month}>
           Save snapshot

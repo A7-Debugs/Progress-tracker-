@@ -26,7 +26,7 @@ Code: `src/lib/life/` (engine, habits, progression, insights, finance) and `src/
 |---|---|---|---|---|---|---|---|---|
 | **Sleep 7h+** | 7h | 8h | Daily | none extra | 3/5 | 5/5 | Phone on charge outside the bedroom at a fixed time | Hours in the check-in |
 | **Train** | 30 min | Full planned workout | 3x/week | 30–75 min | 2/5 | 5/5 | Bag packed the night before, fixed slot | Automatic from the Train tab, or minutes in the check-in |
-| **Morning light walk** | 10 min outside | 15 min | Daily | 10–15 min | 2/5 | 4/5 | Within an hour of waking: shoes by the door, out before opening email | One tap in the check-in (10 / 15 min) |
+| **Daylight walk** | 5 min outside | 15 min | Daily | 5–15 min | 1/5 | 4/5 | Before work if it's light, otherwise a lunchtime walk (any daylight before ~1pm) | One tap in the check-in |
 | **Steps** | 6,000 | 10,000 | Daily | 20–60 min | 1/5 | 4/5 | 10-minute walk after lunch and dinner (the morning walk adds ~1,500) | Step count in the check-in |
 | **Protein target** | 1.6 g/kg bodyweight | 2.0 g/kg | 5x/week | 5–10 min | 2/5 | 4/5 | Log it the moment you finish eating | Food log (tap to add); one-tap fallback in the check-in |
 | **Deep work / study** | 25 min | 60 min | 5x/week | 25–60 min | 3/5 | 5/5 | Same slot daily, materials left open the night before | Focused minutes in the check-in |
@@ -238,3 +238,21 @@ The GT3 RS is treated as a symbol of financial independence, not a purchase targ
 - **Swing warnings:** values that change by more than 50% from the previous month are flagged, both in the dialog and in the list.
 - **Emergency fund months** are shown automatically, using total spending if essential spending is blank.
 - **FI prompt:** a card asks for your yearly spending in financial independence until it's set.
+
+---
+
+## 10. Changes from the November data review
+
+- **Sick days:** an **I'm ill today** toggle in the check-in. Nothing is scheduled that day, so it can't count as a miss, break a daily streak or trigger a deload. Weeks with 3 or more sick days aren't used as progression evidence, and Today shows a Recovery day card.
+- **Incomplete calorie logs:** if the implied burn comes out under 26 kcal/kg, the estimate is withheld. The food log, Trends and the flags explain roughly how many kcal a day are probably missing (26–33 kcal/kg minus the implied burn), and no calorie target can be set from it.
+- **Protein gap helper:** when you're short of the target, the food log shows "Xg to go" with the best options from your own foods (familiar foods first), plus a swap idea for a low-protein, high-calorie item you logged that day.
+- **Daylight walk** replaces the morning walk: any daylight before ~1pm counts (dark winter mornings), the minimum is 5 minutes and 15 minutes is ideal.
+- **Finance**
+  - **Spending includes contributions:** a tick box removes invested and property amounts from spending so they aren't counted twice. A warning appears when spending exceeds income only because of them.
+  - **Student loan** has its own field. It's included in net worth (also shown excluding it), but it's not consumer debt for the GT3 RS debt check, and the post-purchase net worth check excludes it. Large "consumer debt" amounts prompt you to move them if they're a student loan.
+- **Insights**
+  - **Strongest pattern in your data:** each week, the strongest relationship (|r| ≥ 0.3) in plain English.
+  - **A paused habit is helping you:** a flag when Plan tomorrow is paused but planning clearly precedes more deep work.
+  - **Energy has been low for weeks:** a flag when 3-week energy averages 2.5 or less.
+  - **1–5 scales** are now labelled: Drained / Low / Normal / Good / Excellent, so 3 means a normal day.
+- **Quick review:** a 2-minute Sunday review. Add one optional line and accept the recommended mode and priority. Protective phase changes (deload, stabilise) apply automatically; level changes still need the full review.
