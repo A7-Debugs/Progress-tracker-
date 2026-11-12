@@ -186,7 +186,7 @@ export function weekNarrative(week: PeriodEval, prev: PeriodEval | null): Narrat
 // ---------------------------------------------------------------------------
 
 export interface Insight {
-  key: 'win' | 'bottleneck' | 'hidden' | 'roi' | 'friction' | 'opportunity' | 'recommendation';
+  key: 'win' | 'bottleneck' | 'hidden' | 'roi' | 'friction' | 'opportunity' | 'pattern' | 'recommendation';
   title: string;
   body: string;
 }
@@ -278,7 +278,7 @@ export function weeklyInsights(ctx: LifeContext, week: PeriodEval, prev: PeriodE
   const out: Insight[] = [];
   if (week.loggedDays < 3) {
     const msg = 'Insufficient data — log at least 3 days this week.';
-    return (['win', 'bottleneck', 'hidden', 'roi', 'friction', 'opportunity', 'recommendation'] as const).map((key) => ({
+    return (['win', 'bottleneck', 'hidden', 'roi', 'friction', 'opportunity', 'pattern', 'recommendation'] as const).map((key) => ({
       key,
       title: TITLES[key],
       body: key === 'recommendation' ? 'Complete the daily check-in (under 60 seconds) every day this week. Data first, optimisation second.' : msg,
@@ -359,6 +359,10 @@ export function weeklyInsights(ctx: LifeContext, week: PeriodEval, prev: PeriodE
   }
   out.push({ key: 'opportunity', title: TITLES.opportunity, body: opp });
 
+  // Strongest relationship in the data, in plain words
+  const strongest = strongestPattern(ctx, corr);
+  out.push({ key: 'pattern', title: TITLES.pattern, body: strongest ?? 'No relationship strong enough to act on yet (needs |r| ≥ 0.3 over 14+ paired days).' });
+
   // The ONE recommendation
   let rec: string;
   // A due deload outranks everything when reviewing the most recent week.
@@ -388,6 +392,7 @@ const TITLES: Record<Insight['key'], string> = {
   roi: 'Highest-ROI habit',
   friction: 'Friction point',
   opportunity: 'Opportunity',
+  pattern: 'Strongest pattern in your data',
   recommendation: 'Next week: the ONE thing',
 };
 
@@ -467,7 +472,13 @@ export function detectGaming(ctx: LifeContext): Flag[] {
       body: `${active} active habits with ${pct(p21.habitAdherence ?? 0)} adherence. Pause the newest one in Settings → Life OS until the rest are automatic.`,
     });
 
-  // 6. Partly logged days (forgotten snacks / work meals) make calorie numbers meaningless
+  // 6. Calorie log that can't explain the weight trend, and partly logged days
+  const burn = estimateMaintenance(ctx.nutrition, ctx.bodyweight, addDaysStr(ctx.today, -27), ctx.today);
+  if (burn.incomplete)
+    flags.push({
+      title: 'Calorie log looks incomplete',
+      body: `${burn.reason} Log everything for one week — the burn estimate and any calorie target depend on it.`,
+    });
   const partial = estimateMaintenance(ctx.nutrition, ctx.bodyweight, addDaysStr(ctx.today, -13), ctx.today).partialDays;
   if (partial >= 3)
     flags.push({
@@ -504,7 +515,28 @@ export function detectGaming(ctx: LifeContext): Flag[] {
     }
   }
 
-  // 8. High-Performance Mode every week
+  // 8. Energy that is low week after week (a slide is caught elsewhere; a steady low isn't)
+  const energy21 = dateRange(addDaysStr(ctx.today, -20), ctx.today)
+    .map((d) => ctx.byDate.get(d))
+    .filter((c) => c && !c.sick && c.energy != null)
+    .map((c) => c!.energy!);
+  if (energy21.length >= 10 && mean(energy21)! <= 2.5) {
+    const sleep = p21.metrics.avgSleep;
+    flags.push({
+      title: 'Energy has been low for weeks',
+      body: `Energy has averaged ${mean(energy21)!.toFixed(1)}/5 over 3 weeks${sleep !== null && sleep >= 7 ? `, even with ${sleep.toFixed(1)}h of sleep` : ''}. Worth checking: eating enough on low-intake days, daylight, illness, stress. If it carries on for another few weeks, it's worth a chat with your GP. (3 on the scale is a normal day — if 2 has been your "normal", use 3.)`,
+    });
+  }
+
+  // 9. A paused habit that the data says is helping
+  const planDw = correlations(ctx).find((c) => c.key === 'plan-deepwork');
+  if (ctx.profile.pausedHabits.includes('plan') && planDw?.r != null && planDw.r >= 0.3)
+    flags.push({
+      title: 'A paused habit is helping you',
+      body: `Plan tomorrow is paused, but on days after you plan you do clearly more deep work (r = ${planDw.r.toFixed(2)} over ${planDw.n} days). Consider turning it back on in The System.`,
+    });
+
+  // 10. High-Performance Mode every week
   const hp = pastWeeks(ctx, 4).filter((w) => ctx.planByWeek.get(w.start)?.mode === 'high').length;
   if (hp >= 3)
     flags.push({ title: 'High-Performance Mode is becoming the default', body: `${hp} of the last 4 weeks were High-Performance. It's meant to be occasional — schedule a Normal week.` });
@@ -713,4 +745,24 @@ export function weeklySummaryText(ctx: LifeContext, week: PeriodEval, prev: Peri
     for (const f of flags) lines.push(`⚠ ${f.title}: ${f.body}`);
   }
   return lines.join('\n');
+}
+
+const PATTERN_TEXT: Record<string, (r: number) => string> = {
+  'plan-deepwork': (r) => (r > 0 ? 'On days after you plan the evening before, you do more deep work.' : 'Planning the evening before isn’t lining up with more deep work yet.'),
+  'work-adherence': (r) =>
+    r > 0 ? 'You keep your habits better on work days than on free days — structure carries you. Plan free days the evening before.' : 'Long work days knock your habits. Use the minimum versions on long days.',
+  'stress-adherence': (r) =>
+    r > 0 ? 'Your busier, more stressful days are your more consistent days — the slips happen on quiet days.' : 'Stress knocks your habits. On high-stress days, aim for the minimums.',
+  'sleep-energy': (r) => (r > 0 ? 'More sleep goes with more energy for you.' : 'More sleep isn’t lining up with more energy — something else is driving it.'),
+  'sleep-training': (r) => (r > 0 ? 'You train more after better sleep.' : 'Short sleep isn’t stopping you training.'),
+  'training-mood': (r) => (r > 0 ? 'Training days are better-mood days.' : 'Mood is lower on training days — could be fatigue; check recovery and food on those days.'),
+};
+
+/** The strongest correlation with |r| ≥ 0.3, in plain English (relationship, not proof of cause). */
+export function strongestPattern(ctx: LifeContext, corr = correlations(ctx)): string | null {
+  const best = corr.filter((c) => c.r !== null && Math.abs(c.r) >= 0.3).sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!))[0];
+  if (!best) return null;
+  const text = PATTERN_TEXT[best.key]?.(best.r!) ?? best.text;
+  const paused = best.key === 'plan-deepwork' && best.r! > 0 && ctx.profile.pausedHabits.includes('plan') ? ' Plan tomorrow is paused — this suggests turning it back on.' : '';
+  return `${text} (r = ${best.r!.toFixed(2)} over ${best.n} days — a relationship, not proof of cause.)${paused}`;
 }

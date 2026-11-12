@@ -87,6 +87,7 @@ export function scheduleOn(ctx: LifeContext, spec: HabitSpec, date: string): Lev
   const level = levelOn(ctx, date);
   if (!isUnlocked(spec, level, ctx.profile, date)) return null;
   if (ctx.profile.pausedHabits.includes(spec.id)) return null;
+  if (ctx.byDate.get(date)?.sick) return null; // sick day: nothing is scheduled
   return targetFor(spec, level, modeOn(ctx, date));
 }
 
@@ -254,6 +255,7 @@ export interface PeriodMetrics {
   trainingSessions: number;
   workHours: number;
   connectDays: number;
+  sickDays: number;
 }
 
 export interface PeriodEval {
@@ -350,6 +352,7 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
     trainingSessions,
     workHours: logs.reduce((a, c) => a + (c.workHours ?? 0), 0),
     connectDays,
+    sickDays: logs.filter((c) => c.sick).length,
   };
 
   // Deep-work volume target = Σ over days of (ideal minutes × perWeek / 7).
@@ -443,9 +446,9 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
         { label: 'Sleep consistency', value: metrics.sleepSd === null ? null : clamp01(1 - metrics.sleepSd / 1.5), weight: 20 },
         { label: 'Energy', value: metrics.avgEnergy === null ? null : (metrics.avgEnergy - 1) / 4, weight: 20 },
         { label: 'Low stress', value: metrics.avgStress === null ? null : (5 - metrics.avgStress) / 4, weight: 20 },
-        { label: 'Morning light walk', value: adh('morningWalk'), weight: 15 * active('morningWalk') },
+        { label: 'Daylight walk', value: adh('morningWalk'), weight: 15 * active('morningWalk') },
       ],
-      '40% avg sleep ÷ 7.5h + 20% (1 − sleep SD ÷ 1.5h) + 20% energy + 20% inverted stress + 15% morning light walk adherence, re-weighted',
+      '40% avg sleep ÷ 7.5h + 20% (1 − sleep SD ÷ 1.5h) + 20% energy + 20% inverted stress + 15% daylight walk adherence, re-weighted',
     ),
     consistency: { domain: 'consistency', score: null, parts: [], formula: '' },
   };
@@ -515,6 +518,7 @@ export function habitStreaks(ctx: LifeContext, spec: HabitSpec): HabitStreaks {
     let run = 0;
     for (const d of days) {
       if (isSuccess(dayHit(ctx, spec, d))) run++;
+      else if (ctx.byDate.get(d)?.sick) continue; // illness pauses a streak, it doesn't break it
       else if (d !== ctx.today) run = 0;
       longest = Math.max(longest, run);
     }

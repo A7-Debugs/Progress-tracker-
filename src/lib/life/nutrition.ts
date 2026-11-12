@@ -149,7 +149,19 @@ export interface MaintenanceEstimate {
   weighIns: number;
   /** Days excluded as probably incomplete (< 50% of your typical logged intake). */
   partialDays: number;
+  /**
+   * The implied burn was below what any active adult of this bodyweight could plausibly burn, so the
+   * calorie log is probably missing food. `maintenance` is then null and `rawMaintenance` holds the figure.
+   */
+  incomplete: boolean;
+  rawMaintenance: number | null;
+  unloggedLow: number;
+  unloggedHigh: number;
 }
+
+/** Below ~26 kcal/kg/day is implausible for an active adult; ~33 kcal/kg is a typical active upper bound. */
+export const PLAUSIBLE_KCAL_PER_KG = 26;
+export const TYPICAL_HIGH_KCAL_PER_KG = 33;
 
 /**
  * Daily energy expenditure ≈ average logged intake − (weight trend per day × 7,700 kcal/kg), the approach
@@ -165,7 +177,7 @@ export function estimateMaintenance(nut: Map<string, DayNutrition>, bw: Bodyweig
   const intake = all.filter((k) => k >= median * 0.5);
   const partialDays = all.length - intake.length;
   const weights = bw.filter((b) => b.date >= start && b.date <= end && b.weight !== null);
-  const base = { maintenance: null, avgIntake: null, kgPerWeek: null, days: intake.length, weighIns: weights.length, partialDays };
+  const base = { maintenance: null, avgIntake: null, kgPerWeek: null, days: intake.length, weighIns: weights.length, partialDays, incomplete: false, rawMaintenance: null, unloggedLow: 0, unloggedHigh: 0 };
   if (intake.length < 10) return { ...base, ok: false, reason: `Needs 10 complete days with calories logged (have ${intake.length}${partialDays ? `, plus ${partialDays} partial` : ''}).` };
   const avgIntake = intake.reduce((a, b) => a + b, 0) / intake.length;
   const t0 = weights.length ? new Date(weights[0].date).getTime() : 0;
@@ -184,7 +196,25 @@ export function estimateMaintenance(nut: Map<string, DayNutrition>, bw: Bodyweig
   }
   const slope = den ? num / den : 0; // kg per day
   const maintenance = Math.round((avgIntake - slope * KCAL_PER_KG) / 10) * 10;
-  return { ...base, ok: true, reason: '', maintenance, avgIntake: Math.round(avgIntake), kgPerWeek: Math.round(slope * 7 * 100) / 100 };
+  const kgPerWeek = Math.round(slope * 7 * 100) / 100;
+  const floor = PLAUSIBLE_KCAL_PER_KG * my;
+  if (maintenance < floor) {
+    const r50 = (x: number) => Math.max(50, Math.round(x / 50) * 50);
+    const lo = r50(floor - maintenance);
+    const hi = Math.max(lo, r50(TYPICAL_HIGH_KCAL_PER_KG * my - maintenance));
+    return {
+      ...base,
+      ok: false,
+      incomplete: true,
+      rawMaintenance: maintenance,
+      unloggedLow: lo,
+      unloggedHigh: hi,
+      avgIntake: Math.round(avgIntake),
+      kgPerWeek,
+      reason: `Your log looks incomplete: weight is ${kgPerWeek >= 0 ? 'rising' : 'falling'} ${Math.abs(kgPerWeek)} kg/week on ${Math.round(avgIntake).toLocaleString()} kcal logged, which would mean a burn of only ${maintenance.toLocaleString()} kcal — too low for ${Math.round(my)} kg. Roughly ${lo}–${hi} kcal/day probably isn't being logged (snacks, drinks, oils, food at work).`,
+    };
+  }
+  return { ...base, ok: true, reason: '', maintenance, avgIntake: Math.round(avgIntake), kgPerWeek };
 }
 
 export const EXPENDITURE_WINDOW = 28;

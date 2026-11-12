@@ -66,6 +66,10 @@ export function WeekReview({ ctx }: { ctx: LifeContext }) {
         </button>
       </div>
 
+      {ws >= addDaysStr(thisWeek, -7) && !(plan?.reviewedAt || plan?.reflectionWorked || plan?.reflectionDidnt || plan?.reflectionChange) && (
+        <QuickReview ctx={ctx} reviewed={ws} reviewedPlan={plan} rec={d.insights.find((i) => i.key === 'recommendation')!.body} />
+      )}
+
       {/* THIS WEEK */}
       <SectionTitle>This week</SectionTitle>
       <Card className="p-4">
@@ -492,5 +496,64 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-base-400">{label}</label>
       {children}
     </div>
+  );
+}
+
+/** Two-minute version of the Sunday review: one line of reflection, accept the recommended plan, done. */
+function QuickReview({ ctx, reviewed, reviewedPlan, rec }: { ctx: LifeContext; reviewed: string; reviewedPlan: WeekPlan | undefined; rec: string }) {
+  const toast = useToast();
+  const [line, setLine] = useState('');
+  const next = addDaysStr(reviewed, 7);
+  const prog = useMemo(() => recommendProgression(ctx), [ctx]);
+  // Protective phase changes apply automatically; level changes need the full review.
+  const applyPhase = prog.status === 'deload' || prog.status === 'stabilise' || prog.status === 'rebuild';
+  const mode = useMemo(() => recommendMode(ctx, ctx.planByWeek.get(next), applyPhase ? prog.nextPhase : ctx.profile.phase).mode, [ctx, next, applyPhase, prog.nextPhase]);
+
+  async function save() {
+    const now = Date.now();
+    const blank = (weekStart: string): WeekPlan => ({
+      id: weekStart,
+      weekStart,
+      mode: 'normal',
+      expectedWorkHours: null,
+      expectedStress: null,
+      socialCommitments: null,
+      financialPressure: null,
+      importantEvents: '',
+      focus: '',
+      reflectionWorked: '',
+      reflectionDidnt: '',
+      reflectionChange: '',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.weekPlans.put({ ...blank(reviewed), ...reviewedPlan, reflectionChange: line.trim() || reviewedPlan?.reflectionChange || '', reviewedAt: now, updatedAt: now });
+    const existing = ctx.planByWeek.get(next);
+    await db.weekPlans.put({ ...blank(next), ...existing, mode, focus: existing?.focus || rec, updatedAt: now });
+    if (applyPhase && prog.nextPhase !== ctx.profile.phase) await db.lifeProfile.update('life', { phase: prog.nextPhase, phaseSince: next });
+    toast('Quick review saved — next week is planned');
+  }
+
+  return (
+    <Card className="p-4 border-info/40">
+      <p className="text-sm font-semibold text-base-50">Quick review · 2 minutes</p>
+      <p className="text-xs text-base-400 mt-0.5">Short on time? Do this instead of the full review below.</p>
+      <div className="mt-3 flex flex-col gap-2 text-xs">
+        <p className="text-base-200">
+          <span className="text-base-500">Next week: </span>
+          {MODE_LABELS[mode]}
+          {applyPhase && prog.nextPhase !== ctx.profile.phase && ` · ${prog.headline}`}
+        </p>
+        <p className="text-base-200">
+          <span className="text-base-500">ONE priority: </span>
+          {rec}
+        </p>
+        {(prog.status === 'level-up' || prog.status === 'drop-level') && <p className="text-warn">{prog.headline} — use the full review below to decide on that.</p>}
+      </div>
+      <Input className="mt-3" placeholder="One thing I'll change next week (optional)" value={line} onChange={(e) => setLine(e.target.value)} />
+      <Button className="mt-2 w-full" onClick={save}>
+        <Save size={16} /> Save quick review
+      </Button>
+    </Card>
   );
 }

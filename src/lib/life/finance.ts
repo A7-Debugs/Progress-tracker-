@@ -6,6 +6,10 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 export interface FinanceDerived {
   month: string;
   netWorth: number;
+  /** Net worth ignoring an income-contingent student loan. */
+  netWorthExStudentLoan: number;
+  /** Spending with any invested / property amounts taken out (if they were included). */
+  livingSpend: number | null;
   liquid: number; // cash + emergency fund + car fund
   fiAssets: number; // investments + pension + investment property equity
   savings: number | null; // net income − spending
@@ -18,14 +22,29 @@ export function derive(s: FinanceSnapshot): FinanceDerived {
   const liquid = n(s.cash) + n(s.emergencyFund) + n(s.carFund);
   const fiAssets = n(s.investments) + n(s.pension) + n(s.investmentPropertyEquity);
   const homeEquity = n(s.homeValue) - n(s.mortgage);
-  const netWorth = liquid + fiAssets + homeEquity - n(s.otherDebt);
-  const savings = s.netIncome != null && s.spending != null ? s.netIncome - s.spending : null;
-  const savingsRate = savings !== null && s.netIncome ? savings / s.netIncome : null;
+  const netWorthExStudentLoan = liquid + fiAssets + homeEquity - n(s.otherDebt);
+  const netWorth = netWorthExStudentLoan - n(s.studentLoan);
   // Property contributions (overpayments, deposit saving, BTL) build wealth like investing does.
   const wealth = s.invested != null || s.propertyContribution != null ? n(s.invested) + n(s.propertyContribution) : null;
+  const livingSpend = livingSpending(s);
+  const savings = s.netIncome != null && livingSpend !== null ? s.netIncome - livingSpend : null;
+  const savingsRate = savings !== null && s.netIncome ? savings / s.netIncome : null;
   const investRate = wealth !== null && s.netIncome ? wealth / s.netIncome : null;
   const surplus = savings !== null ? savings - n(wealth) : null;
-  return { month: s.month, netWorth, liquid, fiAssets, savings, savingsRate, investRate, surplus };
+  return { month: s.month, netWorth, netWorthExStudentLoan, livingSpend, liquid, fiAssets, savings, savingsRate, investRate, surplus };
+}
+
+/** What you actually spent on living: total spending minus contributions if they were included in it. */
+export function livingSpending(s: FinanceSnapshot): number | null {
+  if (s.spending == null) return null;
+  return s.spendingIncludesContributions ? Math.max(0, s.spending - n(s.invested) - n(s.propertyContribution)) : s.spending;
+}
+
+/** Spending exceeds income while money also went into investments/property: they were probably counted in spending too. */
+export function looksDoubleCounted(s: FinanceSnapshot): boolean {
+  if (s.spendingIncludesContributions || s.netIncome == null || s.spending == null) return false;
+  const contrib = n(s.invested) + n(s.propertyContribution);
+  return contrib > 0 && s.spending > s.netIncome && s.spending - contrib <= s.netIncome;
 }
 
 export interface FiStatus {
@@ -38,7 +57,7 @@ export interface FiStatus {
 
 export function fiStatus(profile: LifeProfile, snaps: FinanceSnapshot[]): FiStatus {
   const latest = snaps[snaps.length - 1];
-  const recentSpend = snaps.slice(-3).map((s) => s.spending).filter((x): x is number => x != null);
+  const recentSpend = snaps.slice(-3).map(livingSpending).filter((x): x is number => x != null);
   const annualSpend = profile.fiAnnualSpend ?? (recentSpend.length ? avg(recentSpend)! * 12 : null);
   const spendSource = profile.fiAnnualSpend != null ? 'profile' : recentSpend.length ? 'snapshots' : 'none';
   const fiNumber = annualSpend ? annualSpend / profile.withdrawalRate : null;
@@ -183,7 +202,7 @@ export function gt3rsReadiness(profile: LifeProfile, snaps: FinanceSnapshot[]): 
   push({
     key: 'debt',
     label: 'Debt position',
-    requirement: 'Zero non-mortgage debt (cards, loans, car finance)',
+    requirement: 'Zero consumer debt (cards, loans, car finance). Student loan excluded: it is repaid as a share of income.',
     current: money(debt),
     progress: debt <= 0 ? 1 : monthlyIncome ? Math.max(0, 1 - debt / (monthlyIncome * 6)) * 0.99 : 0,
     formula: 'met only at zero; partial = 1 − debt ÷ 6 months of income',
@@ -234,10 +253,10 @@ export function gt3rsReadiness(profile: LifeProfile, snaps: FinanceSnapshot[]): 
   push({
     key: 'networth',
     label: 'Post-purchase net worth',
-    requirement: `Price ≤ 10% of net worth → net worth ≥ ${money(price * 10)}`,
-    current: `${money(d.netWorth)} (car = ${d.netWorth > 0 ? Math.round((price / d.netWorth) * 100) : '∞'}%)`,
-    progress: d.netWorth > 0 ? (d.netWorth * 0.1) / price : 0,
-    formula: '(10% × net worth) ÷ price',
+    requirement: `Price ≤ 10% of net worth → net worth ≥ ${money(price * 10)} (excluding any student loan)`,
+    current: `${money(d.netWorthExStudentLoan)} (car = ${d.netWorthExStudentLoan > 0 ? Math.round((price / d.netWorthExStudentLoan) * 100) : '∞'}%)`,
+    progress: d.netWorthExStudentLoan > 0 ? (d.netWorthExStudentLoan * 0.1) / price : 0,
+    formula: '(10% × net worth excluding student loan) ÷ price',
   });
 
   // 10. Ability to keep investing.

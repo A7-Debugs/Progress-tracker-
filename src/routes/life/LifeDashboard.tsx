@@ -145,6 +145,13 @@ export default function LifeDashboard() {
           </button>
         )}
 
+        {ctx.byDate.get(ctx.today)?.sick && (
+          <Card className="p-4 border-warn/40 bg-warn/5">
+            <p className="text-sm font-semibold text-base-50">Recovery day</p>
+            <p className="text-xs text-base-400 mt-0.5">You're marked as ill, so today's habits are paused and nothing counts against you. Sleep, fluids, easy food. The system will be here when you're better.</p>
+          </Card>
+        )}
+
         {data.reviewDue && (
           <Card className="p-4 border-info/40 cursor-pointer active:bg-base-850" onClick={() => navigate('/review')}>
             <p className="text-sm font-semibold text-base-50 flex items-center gap-2">

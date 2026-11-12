@@ -151,7 +151,7 @@ export default function FoodLogPage() {
                   {missingCal > 0 && <span className="block text-[11px] text-warn">{missingCal} item{missingCal === 1 ? '' : 's'} without calories</span>}
                 </p>
               )}
-              <p className="text-[11px] text-base-500 mt-1">
+              <p className={cn('text-[11px] mt-1', burn.incomplete ? 'text-warn' : 'text-base-500')}>
                 {burn.ok
                   ? `Estimated burn ≈ ${burn.maintenance!.toLocaleString()} kcal/day (28-day intake ${burn.avgIntake!.toLocaleString()}, weight ${burn.kgPerWeek! > 0 ? '+' : ''}${burn.kgPerWeek} kg/wk${burn.partialDays ? `, ${burn.partialDays} partial days ignored` : ''})`
                   : `Burn estimate: ${burn.reason}`}
@@ -159,6 +159,8 @@ export default function FoodLogPage() {
             </div>
           </div>
         </Card>
+
+        <ProteinHelper protein={protein} target={targets.min} logs={logs} foods={foods} onAdd={addFood} />
 
         {/* Logged entries */}
         {logs.length > 0 && (
@@ -422,5 +424,53 @@ function EntryDialog({ entry, foods, onClose }: { entry: FoodLog; foods: FoodIte
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+/** Protein per 100 kcal: how "efficient" a food is for hitting the target. */
+const density = (f: Pick<FoodItem, 'protein' | 'calories'>) => (f.protein / Math.max(50, f.calories ?? 200)) * 100;
+
+/**
+ * When short of the target: how much is left and the best options from *your own* foods,
+ * plus a swap idea for a low-protein, high-calorie item you logged today (e.g. a croissant).
+ */
+function ProteinHelper({ protein, target, logs, foods, onAdd }: { protein: number; target: number; logs: FoodLog[]; foods: FoodItem[]; onAdd: (f: FoodItem) => void }) {
+  const gap = target - protein;
+  const options = foods
+    .filter((f) => f.protein >= 15)
+    .sort((a, b) => (b.useCount > 0 ? 1 : 0) - (a.useCount > 0 ? 1 : 0) || density(b) - density(a))
+    .slice(0, 3);
+  const byId = new Map(foods.map((f) => [f.id, f]));
+  const low = logs
+    .map((l) => (l.foodId ? byId.get(l.foodId) : undefined))
+    .filter((f): f is FoodItem => !!f && (f.calories ?? 0) >= 200 && f.protein * 4 < (f.calories ?? 0) * 0.1)
+    .sort((a, b) => (b.calories ?? 0) - (a.calories ?? 0))[0];
+  const swap = low ? foods.filter((f) => f.protein >= low.protein + 15 && (f.calories ?? 9999) <= (low.calories ?? 0) + 100).sort((a, b) => b.useCount - a.useCount || density(b) - density(a))[0] : undefined; // familiar foods first
+  if (gap <= 0 && !swap) return null;
+  return (
+    <Card className="p-4">
+      {gap > 0 && (
+        <>
+          <p className="text-sm font-semibold text-base-50">{gap}g to go — best options from your foods</p>
+          <div className="flex flex-col gap-1.5 mt-2">
+            {options.map((f) => (
+              <button key={f.id} onClick={() => onAdd(f)} className="flex items-center justify-between rounded-xl bg-base-850 border border-base-700 px-3 py-2 text-left">
+                <span className="text-sm text-base-100 truncate">{f.name}</span>
+                <span className="text-xs text-accent shrink-0 ml-2">
+                  +{f.protein}g{f.calories !== null && ` · ${f.calories} kcal`}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {low && swap && (
+        <p className={cn('text-xs text-base-300 leading-relaxed', gap > 0 && 'mt-3')}>
+          <span className="font-semibold text-warn">Swap idea: </span>
+          {low.name} gives {low.protein}g protein for {low.calories} kcal. Swapping one for {swap.name} adds +{swap.protein - low.protein}g protein
+          {swap.calories !== null && low.calories !== null && (swap.calories <= low.calories ? ` and saves ${low.calories - swap.calories} kcal` : ` for ${swap.calories - low.calories} more kcal`)}.
+        </p>
+      )}
+    </Card>
   );
 }

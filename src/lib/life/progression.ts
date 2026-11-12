@@ -26,8 +26,8 @@ export interface ProgressionRec {
 const pct = (x: number | null) => (x === null ? '—' : `${Math.round(x)}%`);
 const adh = (w: PeriodEval) => (w.habitAdherence === null ? null : w.habitAdherence * 100);
 
-/** A week counts as evidence only if at least 4 of its days were logged. */
-const valid = (w: PeriodEval) => w.loggedDays >= 4 && w.habitAdherence !== null;
+/** A week counts as evidence only if at least 4 of its days were logged and fewer than 3 were sick days. */
+const valid = (w: PeriodEval) => w.loggedDays >= 4 && w.metrics.sickDays < 3 && w.habitAdherence !== null;
 
 export const LEVEL_UP_RULES = {
   weeks: 3,
