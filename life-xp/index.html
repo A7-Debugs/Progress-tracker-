@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07070d" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="LIFE XP: level up your real life. Habits, quests, health and GCSE revision, gamified." />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LIFE XP" />
+    <title>LIFE XP</title>
+    <style>
+      html, body { background: #07070d; margin: 0; }
+      .boot { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; font-family: "Segoe UI", Roboto, system-ui, sans-serif; color: #e5e7f2; }
+      .boot svg { filter: drop-shadow(0 0 24px rgba(63, 227, 255, 0.45)); animation: boot 1.6s ease-in-out infinite; }
+      .boot b { font-size: 28px; letter-spacing: 0.04em; font-weight: 900; }
+      .boot b span { color: #3fe3ff; }
+      @keyframes boot { 50% { transform: scale(1.06); } }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot" aria-label="Loading LIFE XP">
+        <svg width="96" height="96" viewBox="0 0 96 96"><defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fe3ff"/><stop offset="1" stop-color="#a47bff"/></linearGradient></defs><polygon points="48,4 86,26 86,70 48,92 10,70 10,26" fill="url(#b)"/><polygon points="48,12 79,30 79,66 48,84 17,66 17,30" fill="#0d0e18"/><path d="M30 60 L42 46 L52 54 L66 36" stroke="#3fe3ff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M58 36 H66 V44" stroke="#3fe3ff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <b>LIFE <span>XP</span></b>
+      </div>
+    </div>
+    <noscript>LIFE XP needs JavaScript turned on.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
