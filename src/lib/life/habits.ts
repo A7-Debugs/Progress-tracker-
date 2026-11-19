@@ -1,4 +1,4 @@
-import type { Domain, HabitId, Level, LifeProfile, Mode } from './types';
+import type { CustomHabitDef, Domain, HabitId, Level, LifeProfile, Mode } from './types';
 
 export interface LevelTarget {
   /** Threshold for a successful (minimum) day. Units depend on `input`. */
@@ -9,7 +9,7 @@ export interface LevelTarget {
   perWeek: number;
 }
 
-export type HabitInput = 'hours' | 'minutes' | 'steps' | 'tri' | 'bool' | 'session' | 'protein' | 'calories';
+export type HabitInput = 'hours' | 'minutes' | 'steps' | 'tri' | 'bool' | 'session' | 'protein' | 'calories' | 'count';
 
 export interface HabitSpec {
   id: HabitId;
@@ -35,11 +35,15 @@ export interface HabitSpec {
   /** Extra scheduled days per week in High-Performance Mode. */
   highBump: number;
   redesign: { smaller: string; environment: string; trigger: string };
+  /** Custom habits: scored from this date. */
+  startDate?: string;
+  custom?: boolean;
 }
 
 const same = (t: LevelTarget): Record<Level, LevelTarget> => ({ 1: t, 2: t, 3: t, 4: t, 5: t, 6: t });
 
-export const HABITS: HabitSpec[] = [
+/** The built-in habit definitions. Use HABITS (built-ins with your edits, plus your own habits) everywhere else. */
+export const BUILTIN_HABITS: HabitSpec[] = [
   {
     id: 'sleep',
     name: 'Sleep 7h+',
@@ -465,39 +469,94 @@ export const HABITS: HabitSpec[] = [
   },
   {
     id: 'vitamins',
-    name: 'Vitamins',
+    name: 'Supplements',
     domain: 'health',
     secondary: ['recovery'],
     input: 'bool',
     unit: '',
-    why: 'Cheap insurance for energy, immunity and recovery (e.g. vitamin D through UK winters). Tiny effort, so it is introduced as a quick win once the foundation is automatic.',
+    why: 'Fewer setbacks from illness and better training. Strongest evidence: vitamin D3 (the NHS advises 10µg/day for everyone in the UK from October to March; it modestly reduces respiratory infections in people who are low) and creatine monohydrate 3–5g/day (strength and training progress). Check with a pharmacist if you take medication.',
     goalLink: 'd90-health',
-    trigger: 'Bottle next to the kettle / coffee machine — take them with breakfast.',
+    trigger: 'Bottles next to the kettle — take them with breakfast.',
     track: 'One tap in the check-in.',
-    minLabel: 'Taken with breakfast',
-    idealLabel: 'Taken with breakfast',
+    minLabel: 'Taken today',
+    idealLabel: 'Taken today',
     estMinutes: { min: 1, ideal: 1 },
     difficulty: 1,
-    impact: 2,
-    unlock: 2,
-    targets: same({ min: 1, ideal: 1, perWeek: 6 }),
-    minimumMode: null,
-    highBump: 1,
+    impact: 3,
+    unlock: 1,
+    targets: same({ min: 1, ideal: 1, perWeek: 7 }),
+    minimumMode: { min: 1, ideal: 1, perWeek: 5 },
+    highBump: 0,
     redesign: {
-      smaller: 'Move the bottle to wherever you already are every morning (next to the kettle or your toothbrush).',
+      smaller: 'Move the bottles to wherever you already are every morning (next to the kettle or your toothbrush).',
       environment: 'A weekly pill organiser removes the "did I take them?" question.',
-      trigger: 'Kettle on → vitamins.',
+      trigger: 'Kettle on → supplements.',
     },
   },
 ];
 
-export const HABIT_BY_ID = new Map(HABITS.map((h) => [h.id, h]));
+/**
+ * The live habit list: built-ins with your edits applied, followed by habits you created.
+ * Rebuilt by applyHabitConfig() whenever the profile is loaded (buildContext calls it), so every screen
+ * and calculation sees the same list.
+ */
+export const HABITS: HabitSpec[] = [...BUILTIN_HABITS];
+export const HABIT_BY_ID = new Map<HabitId, HabitSpec>(HABITS.map((h) => [h.id, h]));
 
-export const CORE_V1: HabitId[] = ['sleep', 'morningWalk', 'train', 'steps', 'protein', 'deepWork', 'plan', 'moneyReview'];
+export function customToSpec(c: CustomHabitDef): HabitSpec {
+  const t = { min: c.min, ideal: c.ideal, perWeek: c.perWeek };
+  const lbl = (x: number) => (c.input === 'bool' ? 'Done' : c.input === 'minutes' ? `${x} min` : `${x} ${c.unit}`.trim());
+  return {
+    id: c.id,
+    name: c.name,
+    domain: c.domain,
+    secondary: [],
+    input: c.input,
+    unit: c.input === 'minutes' ? 'min' : c.unit,
+    why: c.why || 'Your own habit.',
+    goalLink: c.goalLink,
+    trigger: c.trigger || 'Set a cue: "After I …, I will …".',
+    track: c.input === 'bool' ? 'One tap in the check-in.' : `Enter ${c.input === 'minutes' ? 'minutes' : c.unit || 'the number'} in the check-in.`,
+    minLabel: lbl(c.min),
+    idealLabel: lbl(c.ideal),
+    estMinutes: c.input === 'minutes' ? { min: c.min, ideal: c.ideal } : { min: 2, ideal: 5 },
+    difficulty: 2,
+    impact: 3,
+    unlock: 1,
+    targets: same(t),
+    minimumMode: { min: c.min, ideal: c.ideal, perWeek: Math.max(1, c.perWeek - 2) },
+    highBump: 0,
+    redesign: { smaller: `Shrink it: the smallest version of "${c.name}" you could do on your worst day.`, environment: 'Make it obvious and easy where you already are.', trigger: c.trigger || 'Attach it to something you already do daily.' },
+    startDate: c.startDate,
+    custom: true,
+  };
+}
+
+/** Rebuild HABITS / HABIT_BY_ID from the profile (edits to built-ins + your own habits). */
+export function applyHabitConfig(profile: Pick<LifeProfile, 'habitOverrides' | 'customHabits'>): void {
+  const built = BUILTIN_HABITS.map((h) => {
+    const o = profile.habitOverrides?.[h.id];
+    if (!o) return h;
+    return {
+      ...h,
+      name: o.name || h.name,
+      trigger: o.trigger || h.trigger,
+      why: o.why || h.why,
+      ...(o.startDate ? { startDate: o.startDate } : {}),
+      ...(o.targets ? { targets: same(o.targets), minimumMode: h.minimumMode && { ...o.targets, perWeek: Math.min(o.targets.perWeek, h.minimumMode.perWeek) } } : {}),
+    };
+  });
+  const list = [...built, ...(profile.customHabits ?? []).map(customToSpec)];
+  HABITS.splice(0, HABITS.length, ...list);
+  HABIT_BY_ID.clear();
+  for (const h of list) HABIT_BY_ID.set(h.id, h);
+}
+
+export const CORE_V1: HabitId[] = ['sleep', 'morningWalk', 'train', 'steps', 'protein', 'deepWork', 'plan', 'moneyReview', 'vitamins'];
 
 export const LEVELS: { level: Level; name: string; summary: string; unlocks: HabitId[] }[] = [
-  { level: 1, name: 'Foundation', summary: 'Eight small habits. Win by showing up, not by intensity.', unlocks: CORE_V1 },
-  { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading and daily vitamins.', unlocks: ['read', 'vitamins'] },
+  { level: 1, name: 'Foundation', summary: 'A handful of small habits. Win by showing up, not by intensity.', unlocks: CORE_V1 },
+  { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading.', unlocks: ['read'] },
   { level: 3, name: 'Momentum', summary: '45-minute study minimum, 8k steps, add mobility/prehab.', unlocks: ['mobility'] },
   { level: 4, name: 'Expansion', summary: 'Hour-long deep work, add relationships and an evening screen shutdown.', unlocks: ['connect', 'shutdown'] },
   { level: 5, name: 'High Performance', summary: '5 training days, 6 study days, protein daily, add journaling.', unlocks: ['journal'] },
@@ -524,6 +583,7 @@ export const MODE_LABELS: Record<Mode, string> = {
 
 /** Is the habit part of the system? Calories unlock by protein consistency (profile.calorie.unlockedAt), everything else by level. */
 export function isUnlocked(spec: HabitSpec, level: Level, profile: Pick<LifeProfile, 'calorie'>, date?: string): boolean {
+  if (spec.startDate && date && date < spec.startDate) return false;
   if (spec.id === 'calories') {
     const at = profile.calorie?.unlockedAt;
     return !!at && (!date || date >= at);
@@ -531,9 +591,40 @@ export function isUnlocked(spec: HabitSpec, level: Level, profile: Pick<LifeProf
   return spec.unlock <= level;
 }
 
-export function activeHabits(profile: Pick<LifeProfile, 'calorie' | 'level' | 'pausedHabits'>): HabitSpec[] {
-  return HABITS.filter((h) => isUnlocked(h, profile.level, profile) && !profile.pausedHabits.includes(h.id));
+export type HabitState = 'active' | 'paused' | 'trackOnly' | 'removed' | 'upcoming';
+
+/** Removed / track-only on a date (dated, so history before a change keeps its score). */
+export function offOn(profile: Pick<LifeProfile, 'habitStatus'>, id: HabitId, date: string): 'removed' | 'trackOnly' | null {
+  const st = profile.habitStatus?.[id];
+  if (!st) return null;
+  if (st.state !== 'active' && date >= st.from) return st.state;
+  return st.past?.find((p) => date >= p.from && date < p.to)?.state ?? null;
 }
+
+export function habitState(profile: Pick<LifeProfile, 'habitStatus' | 'pausedHabits'>, spec: HabitSpec, date: string): HabitState {
+  const off = offOn(profile, spec.id, date);
+  if (off) return off;
+  if (spec.startDate && date < spec.startDate) return 'upcoming';
+  return profile.pausedHabits.includes(spec.id) ? 'paused' : 'active';
+}
+
+/** New status map entry for a change made today. */
+export function withStatus(profile: Pick<LifeProfile, 'habitStatus'>, id: HabitId, state: 'removed' | 'trackOnly' | 'active', today: string): NonNullable<LifeProfile['habitStatus']> {
+  const map = { ...(profile.habitStatus ?? {}) };
+  const cur = map[id];
+  const past = [...(cur?.past ?? [])];
+  if (cur && cur.state !== 'active' && cur.from < today) past.push({ state: cur.state, from: cur.from, to: today });
+  if (state === 'active' && !past.length) delete map[id];
+  else map[id] = { state, from: today, ...(past.length ? { past } : {}) };
+  return map;
+}
+
+export function activeHabits(profile: Pick<LifeProfile, 'calorie' | 'level' | 'pausedHabits' | 'habitStatus'>, date?: string): HabitSpec[] {
+  return HABITS.filter((h) => isUnlocked(h, profile.level, profile, date) && !profile.pausedHabits.includes(h.id) && !(date && offOn(profile, h.id, date)));
+}
+
+/** Scored-habit cap: 8 at Level 1, +1 per level — more than this and adherence drops for all of them. */
+export const habitCap = (level: number) => 8 + (level - 1);
 
 export interface TargetExtras {
   protein?: { min: number; ideal: number };
@@ -553,6 +644,8 @@ export function formatTarget(spec: HabitSpec, t: LevelTarget, extras: TargetExtr
   switch (spec.input) {
     case 'protein':
       return extras.protein ? { min: `${extras.protein.min}g`, ideal: `${extras.protein.ideal}g` } : { min: spec.minLabel, ideal: spec.idealLabel };
+    case 'count':
+      return { min: `${t.min} ${spec.unit}`.trim(), ideal: `${t.ideal} ${spec.unit}`.trim() };
     case 'calories':
       if (extras.calorieTarget == null) return { min: 'Log calories (awareness)', ideal: 'Log every meal' };
       return { min: `${extras.calorieTarget - t.min}–${extras.calorieTarget + t.min} kcal`, ideal: `${extras.calorieTarget} ±${t.ideal}` };

@@ -3,6 +3,8 @@ import { HABITS, HABIT_BY_ID, DOMAIN_LABELS, type HabitSpec } from './habits';
 import {
   addDaysStr,
   dateRange,
+  daysBetween as daysBetweenStr,
+  toMinutes,
   weekStartOf,
   dayHit,
   evaluatePeriod,
@@ -536,7 +538,44 @@ export function detectGaming(ctx: LifeContext): Flag[] {
       body: `Plan tomorrow is paused, but on days after you plan you do clearly more deep work (r = ${planDw.r.toFixed(2)} over ${planDw.n} days). Consider turning it back on in The System.`,
     });
 
-  // 10. High-Performance Mode every week
+  // 10. Track-only steps: watched, not scored — warn if they fall
+  if (ctx.profile.habitStatus?.steps?.state === 'trackOnly') {
+    const st7 = dateRange(addDaysStr(ctx.today, -6), ctx.today).map((d) => ctx.byDate.get(d)?.steps).filter((x): x is number => x != null);
+    if (st7.length >= 4 && mean(st7)! < 8000)
+      flags.push({ title: 'Steps have dropped', body: `Steps are track-only, but this week they average ${Math.round(mean(st7)!).toLocaleString()} — below 8,000. Usually that means fewer work days; a lunchtime daylight walk covers both.` });
+  }
+
+  // 11. Planning removed: bring it back if deep work falls
+  const planSt = ctx.profile.habitStatus?.plan;
+  if (planSt?.state === 'removed' && daysBetweenStr(planSt.from, ctx.today) >= 14) {
+    const avgDw = (a: string, b: string) => {
+      const v = dateRange(a, b).map((d) => ctx.byDate.get(d)).filter((c) => c && !c.sick).map((c) => c!.deepWorkMinutes ?? 0);
+      return v.length >= 7 ? mean(v)! : null;
+    };
+    const before = avgDw(addDaysStr(planSt.from, -28), addDaysStr(planSt.from, -1));
+    const after = avgDw(planSt.from, ctx.today);
+    if (before !== null && after !== null && before > 0 && after < before * 0.8)
+      flags.push({
+        title: 'Deep work has dropped since planning was removed',
+        body: `Deep work averaged ${Math.round(before)} min/day in the 4 weeks before you removed "Plan tomorrow", and ${Math.round(after)} min/day since. Your earlier data linked evening planning to more deep work — consider restoring it in The System.`,
+      });
+  }
+
+  // 12. Irregular wake times (regularity predicts health better than duration — UK Biobank, 2023)
+  const wakes = dateRange(addDaysStr(ctx.today, -13), ctx.today)
+    .map((d) => toMinutes(ctx.byDate.get(d)?.wakeTime))
+    .filter((x): x is number => x !== null);
+  if (wakes.length >= 7) {
+    const m = mean(wakes)!;
+    const s = Math.sqrt(wakes.reduce((a, x) => a + (x - m) ** 2, 0) / (wakes.length - 1));
+    if (s > 60)
+      flags.push({
+        title: 'Wake time varies a lot',
+        body: `Your wake time varies by about ±${Math.round(s)} min over 2 weeks. Sleep regularity is linked to health and daytime energy more strongly than sleep length (UK Biobank, 2023); a consistent wake time — within ~30 min, weekends included — is the single most useful sleep fix Huberman recommends.`,
+      });
+  }
+
+  // 13. High-Performance Mode every week
   const hp = pastWeeks(ctx, 4).filter((w) => ctx.planByWeek.get(w.start)?.mode === 'high').length;
   if (hp >= 3)
     flags.push({ title: 'High-Performance Mode is becoming the default', body: `${hp} of the last 4 weeks were High-Performance. It's meant to be occasional — schedule a Normal week.` });
