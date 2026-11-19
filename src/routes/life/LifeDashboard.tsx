@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AlertTriangle, ArrowUpRight, CalendarCheck, ChevronRight, ClipboardCheck, Flame, Gauge, Layers, LineChart, Target, TrendingUp, Utensils, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { RecoveryTools } from '@/components/life/RecoveryTools';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { GoalBar, HitDot, Ring, SectionTitle, TrendBars } from '@/components/life/Visuals';
@@ -150,6 +151,10 @@ export default function LifeDashboard() {
             <p className="text-sm font-semibold text-base-50">Recovery day</p>
             <p className="text-xs text-base-400 mt-0.5">You're marked as ill, so today's habits are paused and nothing counts against you. Sleep, fluids, easy food. The system will be here when you're better.</p>
           </Card>
+        )}
+
+        {ctx.byDate.get(ctx.today) && (
+          <RecoveryTools energy={ctx.byDate.get(ctx.today)!.energy} stress={ctx.byDate.get(ctx.today)!.stress} sick={!!ctx.byDate.get(ctx.today)!.sick} />
         )}
 
         {data.reviewDue && (

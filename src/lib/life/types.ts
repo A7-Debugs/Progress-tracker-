@@ -14,7 +14,9 @@ export type HabitId =
   | 'journal'
   | 'calories'
   | 'vitamins'
-  | 'morningWalk';
+  | 'morningWalk'
+  /** Habits you create yourself. */
+  | `c-${string}`;
 
 export type Domain =
   | 'health'
@@ -56,6 +58,16 @@ export interface DailyCheckin {
   commitments: string;
   /** Ill today: habits aren't scheduled, so the day can't count as a miss, break a streak or trigger a deload. */
   sick?: boolean;
+  /** Optional sleep timing (HH:mm) for the sleep-regularity score. bedTime is the night before. */
+  bedTime?: string;
+  wakeTime?: string;
+  /** Daylight walk happened before 10am (needed for the ideal). */
+  walkEarly?: boolean;
+  /** Pay multiplier for today's hours (e.g. 1.5 for overtime). Default 1. */
+  rateMultiplier?: number;
+  /** Optional: total spent today, and (on money-check days) total spent this week. */
+  spentToday?: number | null;
+  spentWeek?: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -165,6 +177,85 @@ export interface GoalMetric {
   deadline: string;
 }
 
+/** A habit you created. Values for the check-in are stored in habits[id] (tick) or minutes[id] (minutes / number). */
+export interface CustomHabitDef {
+  id: `c-${string}`;
+  name: string;
+  input: 'bool' | 'minutes' | 'count';
+  unit: string; // for 'count', e.g. "pages"
+  min: number;
+  ideal: number;
+  perWeek: number;
+  domain: Domain;
+  why: string;
+  trigger: string;
+  goalLink: string;
+  /** Scored from this date (the Monday after it was added). */
+  startDate: string;
+}
+
+/** Your edits to a built-in habit. */
+export interface HabitOverride {
+  name?: string;
+  trigger?: string;
+  why?: string;
+  /** Replaces the level-based targets at every level. */
+  targets?: { min: number; ideal: number; perWeek: number };
+  /** Scored from this date (e.g. Supplements moving to Level 1 doesn't rescore past weeks). */
+  startDate?: string;
+}
+
+/** Removed (no longer scored or shown) or track-only (shown, logged, not scored), from a date. History before it is kept. */
+export interface HabitStatus {
+  /** 'active' = restored (only `past` periods still apply). */
+  state: 'removed' | 'trackOnly' | 'active';
+  from: string;
+  /** Earlier removed / track-only periods, kept so old weeks score the way they did. */
+  past?: { state: 'removed' | 'trackOnly'; from: string; to: string }[];
+}
+
+export interface RecurringTransfer {
+  id: string;
+  label: string;
+  amount: number;
+  dayOfMonth: number;
+  kind: 'property' | 'invest' | 'savings' | 'bill';
+}
+
+export interface Payslip {
+  month: string; // yyyy-MM the pay is for
+  gross: number;
+  net: number;
+  tax: number | null;
+  ni: number | null;
+  pension: number | null;
+  studentLoan: number | null;
+}
+
+/** Totals from an imported bank statement (individual transactions are not stored). */
+export interface BankMonth {
+  id: string; // `${source}-${month}`
+  source: 'starling' | 'monzo';
+  month: string;
+  spending: number;
+  income: number;
+  excluded: number; // transfers / savings pots / recurring transfers left out
+  byCategory: Record<string, number>;
+  importedAt: number;
+}
+
+export interface PaySettings {
+  /** Gross hourly rate history, oldest first. */
+  rates: { from: string; gross: number }[];
+  /** Paid this many working days before the last working day of the month. */
+  paydayOffset: number;
+  /** true = paid for the same month you worked it. */
+  paidSameMonth: boolean;
+  recurring: RecurringTransfer[];
+  payslips: Payslip[];
+  bankMonths: BankMonth[];
+}
+
 export interface GoalNode {
   id: string;
   parentId: string | null;
@@ -201,6 +292,14 @@ export interface LifeProfile {
   proteinPerKg?: { min: number; ideal: number };
   calorie?: CalorieSettings;
   foodsSeeded?: boolean;
+  customHabits?: CustomHabitDef[];
+  habitOverrides?: Partial<Record<HabitId, HabitOverride>>;
+  habitStatus?: Partial<Record<HabitId, HabitStatus>>;
+  /** Shown with the Supplements habit, e.g. ["Vitamin D3 10µg", "Creatine 5g"]. */
+  supplements?: string[];
+  pay?: PaySettings;
+  /** One-off data migrations already applied (by name). */
+  migrations?: string[];
   pausedHabits: HabitId[];
   fiAnnualSpend: number | null; // null → derive from snapshots
   withdrawalRate: number; // 0.04

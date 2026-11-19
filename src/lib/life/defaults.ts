@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { todayStr } from '@/lib/id';
-import type { GoalNode, GoalTier, LifeProfile } from './types';
+import type { GoalNode, GoalTier, LifeProfile, PaySettings } from './types';
 
 export const TIER_LABELS: Record<GoalTier, string> = {
   vision: '20–30 year vision',
@@ -86,4 +86,45 @@ export async function ensureLifeProfile(): Promise<void> {
   if (!existing) await db.lifeProfile.put(defaultProfile());
   // 180 g made most days look like failure; untouched profiles move to a 160 g stretch (140 g stays the target).
   else if (existing.proteinMinG === 140 && existing.proteinIdealG === 180) await db.lifeProfile.update('life', { proteinIdealG: 160 });
+  await applyMigrations();
+}
+
+export const DEFAULT_SUPPLEMENTS = ['Vitamin D3 (10µg)', 'Creatine monohydrate (5g)'];
+
+export function defaultPay(): PaySettings {
+  return {
+    rates: [{ from: '2026-01-01', gross: 14.45 }],
+    paydayOffset: 2,
+    paidSameMonth: true,
+    recurring: [{ id: 'cyprus', label: 'Cyprus property build', amount: 1651, dayOfMonth: 1, kind: 'property' }],
+    payslips: [],
+    bankMonths: [],
+  };
+}
+
+/**
+ * One-off profile changes, each applied once (tracked in profile.migrations).
+ * 'habits-2026-11': the November habit review — steps become track-only (13k/day when working), planning is
+ * removed (calendar planning is automated; the app watches deep work and suggests bringing it back if it drops),
+ * existing pauses stay (they're undated, so lifting them would rescore past weeks), and pay settings start with £14.45/h and the Cyprus transfer.
+ */
+async function applyMigrations(): Promise<void> {
+  const p = await db.lifeProfile.get('life');
+  if (!p) return;
+  const done = new Set(p.migrations ?? []);
+  if (done.has('habits-2026-11')) return;
+  const today = todayStr();
+  const habitStatus = { ...(p.habitStatus ?? {}) };
+  if (!habitStatus.steps) habitStatus.steps = { state: 'trackOnly', from: today };
+  if (!habitStatus.plan) habitStatus.plan = { state: 'removed', from: today };
+  // Supplements moved from Level 2 to Level 1: score it from today so past weeks keep their scores.
+  const habitOverrides = { ...(p.habitOverrides ?? {}) };
+  if (p.level < 2) habitOverrides.vitamins = { ...(habitOverrides.vitamins ?? {}), startDate: today };
+  await db.lifeProfile.update('life', {
+    habitStatus,
+    habitOverrides,
+    supplements: p.supplements ?? DEFAULT_SUPPLEMENTS,
+    pay: p.pay ?? defaultPay(),
+    migrations: [...done, 'habits-2026-11'],
+  });
 }

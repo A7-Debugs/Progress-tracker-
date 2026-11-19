@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/Input';
 import { Switch } from '@/components/ui/Switch';
 import { Collapsible, SectionTitle } from '@/components/life/Visuals';
 import { useLife } from '@/lib/life/useLife';
-import { CORE_V1, DOMAIN_LABELS, HABITS, LEVELS, MODE_LABELS, formatTarget, frequencyLabel, isUnlocked, targetFor, type HabitSpec, type TargetExtras } from '@/lib/life/habits';
+import { CORE_V1, DOMAIN_LABELS, HABITS, LEVELS, MODE_LABELS, formatTarget, frequencyLabel, isUnlocked, offOn, targetFor, type HabitSpec, type TargetExtras } from '@/lib/life/habits';
 import { DOMAIN_WEIGHTS, modeOn, targetExtras, type LifeContext } from '@/lib/life/engine';
 import { CALORIE_UNLOCK, DELOAD_RULES, LEVEL_UP_RULES, calorieStatus, calorieUnlockStatus } from '@/lib/life/progression';
 import { AWARENESS_DAYS, CALORIE_BANDS, CALORIE_OFFSETS, DEFAULT_PER_KG, GOAL_LABELS, proteinTargets } from '@/lib/life/nutrition';
 import { Button } from '@/components/ui/Button';
 import { TIER_LABELS } from '@/lib/life/defaults';
+import { HabitEditor } from './HabitEditor';
 import type { CalorieGoal, Domain, LifeProfile, Mode } from '@/lib/life/types';
 
 const PRINCIPLES = [
@@ -35,7 +36,7 @@ export default function SystemPage() {
   const { profile } = ctx;
   const mode = viewMode ?? modeOn(ctx, ctx.today);
   const extras = targetExtras(ctx, ctx.today);
-  const active = HABITS.filter((h) => isUnlocked(h, profile.level, profile));
+  const active = HABITS.filter((h) => isUnlocked(h, profile.level, profile) && !offOn(profile, h.id, ctx.today));
 
   return (
     <div className="animate-fade-in">
@@ -69,6 +70,8 @@ export default function SystemPage() {
         {active.map((h) => (
           <HabitCard key={h.id} h={h} profile={profile} mode={mode} extras={extras} />
         ))}
+
+        <HabitEditor ctx={ctx} />
 
         <SectionTitle>Progression levels</SectionTitle>
         <Card className="p-4 flex flex-col gap-3">
@@ -132,7 +135,7 @@ export default function SystemPage() {
 
         <SectionTitle>Life OS settings</SectionTitle>
         <Card className="p-4">
-          <SettingsPanel profile={profile} />
+          <SettingsPanel />
         </Card>
       </div>
     </div>
@@ -180,22 +183,10 @@ function Item({ k, v }: { k: string; v: string }) {
   );
 }
 
-function SettingsPanel({ profile }: { profile: LifeProfile }) {
-  const upd = (patch: Partial<LifeProfile>) => db.lifeProfile.update('life', patch);
-  const unlocked = HABITS.filter((h) => isUnlocked(h, profile.level, profile));
+function SettingsPanel() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs font-semibold text-base-200 mt-1">Pause a habit</p>
-      <p className="text-[11px] text-base-500 -mt-2">Too many habits? Pause the newest rather than failing all of them. Paused habits aren't scored.</p>
-      {unlocked.map((h) => (
-        <div key={h.id} className="flex items-center justify-between">
-          <span className="text-sm text-base-100">{h.name}</span>
-          <Switch
-            checked={!profile.pausedHabits.includes(h.id)}
-            onCheckedChange={(on) => upd({ pausedHabits: on ? profile.pausedHabits.filter((x) => x !== h.id) : [...profile.pausedHabits, h.id] })}
-          />
-        </div>
-      ))}
+      <p className="text-[11px] text-base-500">Pause, track-only, remove, edit or add habits under "Edit habits" above.</p>
     </div>
   );
 }

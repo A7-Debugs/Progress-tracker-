@@ -6,14 +6,17 @@ import { db } from '@/lib/db';
 import { newId } from '@/lib/id';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
+import { RecoveryTools } from '@/components/life/RecoveryTools';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toaster';
 import { Chips, Collapsible, Scale5, TriPicker } from '@/components/life/Visuals';
 import { useLife } from '@/lib/life/useLife';
-import { HABIT_BY_ID, formatTarget } from '@/lib/life/habits';
-import { addDaysStr, scheduleOn, targetExtras } from '@/lib/life/engine';
+import { HABITS, HABIT_BY_ID, formatTarget } from '@/lib/life/habits';
+import { DEFAULT_SUPPLEMENTS } from '@/lib/life/defaults';
+import { grossFor, rateOn, takeHomeRatio } from '@/lib/life/earnings';
+import { addDaysStr, scheduleOn, targetExtras, toMinutes } from '@/lib/life/engine';
 import { derivedFields } from '@/lib/life/sync';
 import type { DailyCheckin, HabitId, Hit } from '@/lib/life/types';
 
@@ -75,6 +78,10 @@ export default function CheckIn() {
       morningWalk: s('morningWalk'),
       connect: s('connect'),
       vitamins: s('vitamins'),
+      custom: HABITS.filter((h) => h.custom).flatMap((h) => {
+        const t = scheduleOn(ctx, h, date);
+        return t ? [{ spec: h, t, label: formatTarget(h, t) }] : [];
+      }),
       appSession: ctx.sessionMinutes.get(date) ?? null,
     };
   }, [ctx, date]);
@@ -84,6 +91,21 @@ export default function CheckIn() {
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
   const setHit = (id: HabitId, v: Hit) => setForm((f) => ({ ...f, habits: { ...f.habits, [id]: v } }));
   const setBool = (id: HabitId, v: boolean) => setForm((f) => ({ ...f, habits: { ...f.habits, [id]: v ? 'ideal' : 'miss' } }));
+  const rate = rateOn(ctx.profile.pay, date);
+  const gross = grossFor(ctx.profile.pay, { date, workHours: form.workHours, rateMultiplier: form.rateMultiplier });
+  const ratio = takeHomeRatio(ctx.profile.pay);
+  /** Bed/wake times also fill in hours slept when that's still empty. */
+  const setTimes = (patch: { bedTime?: string; wakeTime?: string }) =>
+    setForm((f) => {
+      const next = { ...f, ...patch };
+      const b = toMinutes(next.bedTime);
+      const w = toMinutes(next.wakeTime);
+      if (b !== null && w !== null && f.sleepHours == null) {
+        const mins = (w - b + 1440) % 1440;
+        if (mins > 180 && mins < 840) next.sleepHours = Math.round((mins / 60) * 4) / 4;
+      }
+      return next;
+    });
   const go = (n: number) => {
     const d = addDaysStr(date, n);
     if (d > ctx.today) return;
@@ -148,6 +170,15 @@ export default function CheckIn() {
             <Input type="number" inputMode="decimal" step="0.25" placeholder="hours" value={form.sleepHours ?? ''} onChange={(e) => set('sleepHours', toNum(e.target.value))} className="w-24 text-center" />
             <Chips values={[6, 6.5, 7, 7.5, 8, 8.5]} current={form.sleepHours} onPick={(v) => set('sleepHours', v)} />
           </div>
+          <div className="grid grid-cols-2 gap-2 mt-2.5">
+            <Field label="Bedtime (optional)">
+              <Input type="time" value={form.bedTime ?? ''} onChange={(e) => setTimes({ bedTime: e.target.value })} />
+            </Field>
+            <Field label="Woke up (optional)">
+              <Input type="time" value={form.wakeTime ?? ''} onChange={(e) => setTimes({ wakeTime: e.target.value })} />
+            </Field>
+          </div>
+          <p className="text-[10px] text-base-500 mt-1">Times feed your wake-time regularity score — a steady wake time matters more than hours for daytime energy.</p>
         </Q>
 
         {sched.morningWalk && (
@@ -158,6 +189,9 @@ export default function CheckIn() {
               onPick={(v) => setForm((f) => ({ ...f, minutes: { ...f.minutes, morningWalk: v } }))}
               suffix=" min"
             />
+            <div className="mt-2.5">
+              <Toggle label="Before 10am" sub="Ideal = 15+ min early in the day (Huberman: ~10 min sun, 20–30 min if overcast)" checked={form.walkEarly === true} onChange={(v) => setForm((f) => ({ ...f, walkEarly: v }))} />
+            </div>
           </Q>
         )}
 
@@ -174,7 +208,7 @@ export default function CheckIn() {
           )}
         </Q>
 
-        <Q title="Steps" sub={sched.steps ? `Min ${sched.steps.label.min} · Ideal ${sched.steps.label.ideal}` : undefined}>
+        <Q title="Steps" sub={sched.steps ? `Min ${sched.steps.label.min} · Ideal ${sched.steps.label.ideal}` : 'Tracked, not scored (optional)'}>
           <Input type="number" inputMode="numeric" placeholder="e.g. 8,500" value={form.steps ?? ''} onChange={(e) => set('steps', toNum(e.target.value))} />
         </Q>
 
@@ -228,12 +262,41 @@ export default function CheckIn() {
           </Q>
         )}
 
+        {sched.custom
+          .filter((c) => c.spec.input !== 'bool')
+          .map((c) => (
+            <Q key={c.spec.id} title={c.spec.name} sub={`Min ${c.label.min} · Ideal ${c.label.ideal}`}>
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder={c.spec.input === 'minutes' ? 'minutes' : c.spec.unit || 'number'}
+                value={form.minutes[c.spec.id] ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, minutes: { ...f.minutes, [c.spec.id]: e.target.value === '' ? undefined : Number(e.target.value) } }))}
+              />
+            </Q>
+          ))}
+
         <Card className="p-4 flex flex-col gap-3">
           {sched.vitamins && (
-            <Toggle label="Vitamins taken" sub="Habit · with breakfast" checked={form.habits.vitamins === 'ideal'} onChange={(v) => setBool('vitamins', v)} />
+            <Toggle
+              label="Supplements taken"
+              sub={(ctx.profile.supplements ?? DEFAULT_SUPPLEMENTS).join(' · ') || 'Habit · with breakfast'}
+              checked={form.habits.vitamins === 'ideal'}
+              onChange={(v) => setBool('vitamins', v)}
+            />
           )}
+          {sched.custom
+            .filter((c) => c.spec.input === 'bool')
+            .map((c) => (
+              <Toggle key={c.spec.id} label={c.spec.name} sub="Your habit" checked={form.habits[c.spec.id] === 'ideal'} onChange={(v) => setBool(c.spec.id, v)} />
+            ))}
           <Toggle label="Meaningful time with someone" sub={sched.connect ? 'Habit · 3x/week' : 'Tracked for your Relationships score'} checked={form.habits.connect === 'ideal'} onChange={(v) => setBool('connect', v)} />
           <Toggle label="Weekly money check done" sub="Once a week (auto-ticks when you update a finance snapshot)" checked={form.habits.moneyReview === 'ideal'} onChange={(v) => setBool('moneyReview', v)} />
+          {form.habits.moneyReview === 'ideal' && (
+            <Field label="Spent this week (£, from your banking apps)">
+              <Input type="number" inputMode="decimal" value={form.spentWeek ?? ''} onChange={(e) => set('spentWeek', toNum(e.target.value))} placeholder="Starling + Monzo weekly total" />
+            </Field>
+          )}
         </Card>
 
         <Q title="Energy" sub="How you felt across the day">
@@ -248,13 +311,38 @@ export default function CheckIn() {
           <Scale5 value={form.stress} onChange={(v) => set('stress', v)} />
           <Anchors labels={['Calm', 'Mild', 'Normal', 'High', 'Overloaded']} />
         </Q>
+        <RecoveryTools energy={form.energy} stress={form.stress} sick={!!form.sick} />
+
+        <Q title="Work" sub={`£${rate.toFixed(2)}/h gross`}>
+          <div className="flex gap-2 items-center flex-wrap">
+            <Input type="number" inputMode="decimal" placeholder="hours" value={form.workHours ?? ''} onChange={(e) => set('workHours', toNum(e.target.value))} className="w-24 text-center" />
+            <Chips values={[0, 4, 6, 7.5, 8, 9, 10]} current={form.workHours} onPick={(v) => set('workHours', v)} />
+          </div>
+          <div className="flex items-center gap-1.5 mt-2.5">
+            <span className="text-[11px] text-base-500 mr-1">Rate today</span>
+            {[1, 1.5, 2].map((m) => (
+              <button
+                key={m}
+                onClick={() => set('rateMultiplier', m)}
+                className={`h-7 px-2.5 rounded-lg text-xs font-semibold border ${(form.rateMultiplier ?? 1) === m ? 'bg-accent text-base-950 border-accent' : 'bg-base-850 text-base-400 border-base-700'}`}
+              >
+                {m}×
+              </button>
+            ))}
+          </div>
+          {(form.workHours ?? 0) > 0 && (
+            <p className="text-xs text-accent mt-2">
+              ≈ £{gross.toFixed(2)} gross · ~£{(gross * ratio.ratio).toFixed(2)} take-home{ratio.source === 'default' ? ' (estimate until your first payslip)' : ''}
+            </p>
+          )}
+        </Q>
 
         <Card className="p-4">
-          <Collapsible title="Optional context (work hours, bodyweight, commitments)">
+          <Collapsible title="Optional (spending, bodyweight, commitments)">
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Work hours">
-                  <Input type="number" inputMode="decimal" value={form.workHours ?? ''} onChange={(e) => set('workHours', toNum(e.target.value))} />
+                <Field label="Spent today (£)">
+                  <Input type="number" inputMode="decimal" value={form.spentToday ?? ''} onChange={(e) => set('spentToday', toNum(e.target.value))} placeholder="optional" />
                 </Field>
                 <Field label="Bodyweight (kg)">
                   <Input type="number" inputMode="decimal" value={form.bodyweight ?? ''} onChange={(e) => set('bodyweight', toNum(e.target.value))} />
@@ -324,3 +412,5 @@ function Anchors({ labels }: { labels: string[] }) {
     </div>
   );
 }
+
+/** Huberman-style tools, shown only when they apply: NSDR on low-energy/sick days, physiological sigh when stressed. */

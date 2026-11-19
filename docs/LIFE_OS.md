@@ -256,3 +256,57 @@ The GT3 RS is treated as a symbol of financial independence, not a purchase targ
   - **Energy has been low for weeks:** a flag when 3-week energy averages 2.5 or less.
   - **1–5 scales** are now labelled: Drained / Low / Normal / Good / Excellent, so 3 means a normal day.
 - **Quick review:** a 2-minute Sunday review. Add one optional line and accept the recommended mode and priority. Protective phase changes (deload, stabilise) apply automatically; level changes still need the full review.
+
+## 11. Editable habits, recovery tools and earnings
+
+### Editing habits (The System → Edit habits)
+- **Statuses:**
+  - **Active**: scored.
+  - **Paused**: not scored for now, still listed.
+  - **Track only**: still logged and shown, not scored.
+  - **Removed**: hidden from the check-in.
+- **Status history:** every change is dated from today, so earlier weeks keep the score they had. Restoring a habit keeps a record of its earlier off-periods.
+- **Edit:** rename a habit, rewrite its trigger or "why", or fix its targets. Changing targets fixes them at every level. Use *Reset to original* to go back to the built-in version.
+- **Add your own:** a tick, minutes or count habit, with minimum and ideal targets, days per week, an area and a linked goal. It's scored from the next Monday, so the current week isn't judged against it.
+- **Habit cap:** 8 scored habits at Level 1, plus 1 per level. Past the cap you swap one out (pause it, make it track only, or remove it) before adding another. Too many habits lowers adherence on all of them.
+- **November changes (one-off migration):**
+  - **Steps are track only.** You average around 13k on work days. A flag appears if your 7-day average drops below 8,000.
+  - **Plan tomorrow is removed,** because calendar planning is automated. After 14 days the app compares your daily deep work with the 28 days before. If it falls more than 20%, you'll see a suggestion to bring planning back.
+  - **Supplements replace the Level 2 vitamins habit.** It's a daily Level 1 tick, with a minimum of 5 days a week. The default list is vitamin D3 10µg (NHS advice for October–March) and creatine 5g, and you can edit it.
+
+### Huberman-based additions
+- **Wake-time regularity:**
+  - optional bed and wake times in the check-in
+  - sleep hours auto-filled from them
+  - a Recovery score part, worth 20% of the Recovery score: full marks for a wake-time SD of 15 minutes or less, falling to 0 at 90 minutes
+  - a flag when the 14-day wake SD is over 60 minutes (UK Biobank 2023: sleep regularity predicts mortality beyond sleep duration)
+- **Daylight walk timing:** tick "Before 10am". If you tick that the walk was later, the most it can score is the minimum. Morning light is what anchors the circadian clock.
+- **Physiological sigh:** suggested when stress is 4 or 5 (Balban et al., 2023).
+- **NSDR / Yoga Nidra:** suggested on low-energy (≤ 2) or sick days, on both the dashboard and the check-in.
+- **Deferred to Level 2+:** caffeine timing (90–120 min after waking), fermented foods and Zone 2. Adding them now would break the habit cap.
+
+### Earnings (Finance → Earnings)
+- **Pay:**
+  - gross £14.45/h, with a dated rate history
+  - an optional 1.5× / 2× multiplier per day (overtime)
+  - hours come from the existing work-hours field in the check-in
+- **Take-home:**
+  - estimated at 80% until you add a payslip
+  - after that, the average net ÷ gross of your last 3 payslips
+  - a month with a payslip uses the real net figure
+- **Payday:** the last working day of the month minus 2 working days (bank holidays aren't included). Pay is for the same month by default; you can change this in Pay settings.
+- **Recurring transfers:** £1,651 to the Cyprus property build on the 1st. It's taken off expected take-home, along with essential bills from your latest snapshot and spending so far. What's left becomes **safe to spend per day**. If the month is overspent, it says so plainly.
+- **Spending without the tedium (cheapest first):**
+  1. **Bank CSV import (Starling / Monzo).** Monthly totals are worked out on the phone. Transfers, pots, savings and anything matching a recurring transfer are left out.
+  2. **"Spent this week"** when you tick the weekly money check.
+  3. **"Spent today"**, an optional field in the check-in.
+- **Snapshot autofill:** a new monthly snapshot fills these fields, and each one says where it came from:
+  - net income, from the payslip or the hours estimate
+  - property contribution, from recurring property transfers
+  - spending, from the bank import or check-ins
+- **Privacy:**
+  - everything stays in the browser's IndexedDB on your phone
+  - nothing is uploaded
+  - bank CSVs are read on the device and only monthly totals are kept
+  - payslip figures are typed in (PDFs are never read)
+  - backups you export include these figures, so store them privately

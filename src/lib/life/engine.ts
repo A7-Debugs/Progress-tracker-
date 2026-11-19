@@ -1,7 +1,7 @@
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns';
 import { estimate1RM } from '@/lib/calculations';
 import type { BodyweightLog, SetLog } from '@/lib/types';
-import { HABITS, HABIT_BY_ID, isUnlocked, targetFor, type HabitSpec, type LevelTarget, type TargetExtras } from './habits';
+import { HABITS, HABIT_BY_ID, applyHabitConfig, isUnlocked, offOn, targetFor, type HabitSpec, type LevelTarget, type TargetExtras } from './habits';
 import { gradeCalories, nutritionByDate, proteinTargets, type DayNutrition } from './nutrition';
 import type { DailyCheckin, Domain, FinanceSnapshot, FoodLog, HabitId, Hit, LifeProfile, Level, Mode, WeekPlan } from './types';
 
@@ -47,6 +47,7 @@ export interface LifeContext extends RawLifeData {
 }
 
 export function buildContext(raw: RawLifeData): LifeContext {
+  applyHabitConfig(raw.profile);
   const byDate = new Map(raw.checkins.map((c) => [c.date, c]));
   const sessionMinutes = new Map<string, number[]>();
   for (const s of raw.sessions) {
@@ -87,6 +88,7 @@ export function scheduleOn(ctx: LifeContext, spec: HabitSpec, date: string): Lev
   const level = levelOn(ctx, date);
   if (!isUnlocked(spec, level, ctx.profile, date)) return null;
   if (ctx.profile.pausedHabits.includes(spec.id)) return null;
+  if (offOn(ctx.profile, spec.id, date)) return null; // removed or track-only on this date (history before it is kept)
   if (ctx.byDate.get(date)?.sick) return null; // sick day: nothing is scheduled
   return targetFor(spec, level, modeOn(ctx, date));
 }
@@ -137,14 +139,19 @@ export function dayHit(ctx: LifeContext, spec: HabitSpec, date: string): Hit | n
       if (kcal === null) return c || n ? 'miss' : null;
       return gradeCalories(kcal, target);
     }
-    case 'morningWalk':
-      return c ? grade(c.minutes?.morningWalk ?? 0, t) : null;
+    case 'morningWalk': {
+      if (!c) return null;
+      const h = grade(c.minutes?.morningWalk ?? 0, t);
+      // Ideal = 15+ min before 10am (light early in the day matters most). Older entries without the flag keep their grade.
+      return h === 'ideal' && c.walkEarly === false ? 'min' : h;
+    }
     case 'mobility':
       return c ? grade(c.minutes?.mobility ?? 0, t) : null;
     case 'moneyReview':
       if (ctx.financeUpdated.has(date)) return 'ideal';
       return c ? (c.habits.moneyReview ?? 'miss') : null;
     default:
+      if (spec.input === 'minutes' || spec.input === 'count') return c ? grade(c.minutes?.[spec.id] ?? 0, t) : null;
       return c ? (c.habits[spec.id] ?? 'miss') : null;
   }
 }
@@ -160,6 +167,13 @@ export function calorieTargetOn(ctx: LifeContext, date: string): number | null {
 export function targetExtras(ctx: LifeContext, date: string): TargetExtras {
   const p = proteinTargets(ctx.profile, ctx.bodyweight, date);
   return { protein: { min: p.min, ideal: p.ideal }, calorieTarget: calorieTargetOn(ctx, date) };
+}
+
+/** "07:30" → minutes after midnight (null if missing/invalid). */
+export function toMinutes(t: string | undefined): number | null {
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
 }
 
 export const isSuccess = (h: Hit | null) => h === 'min' || h === 'ideal';
@@ -256,6 +270,8 @@ export interface PeriodMetrics {
   workHours: number;
   connectDays: number;
   sickDays: number;
+  /** Standard deviation of wake time in minutes (null without 4+ wake times). */
+  wakeSdMin: number | null;
 }
 
 export interface PeriodEval {
@@ -347,6 +363,10 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
     avgEnergy: mean(num('energy')),
     avgMood: mean(num('mood')),
     avgStress: mean(num('stress')),
+    wakeSdMin: (() => {
+      const w = logs.map((c) => toMinutes(c.wakeTime)).filter((x): x is number => x !== null);
+      return w.length >= 4 ? sd(w) : null;
+    })(),
     avgSteps: mean(num('steps')),
     deepWorkMinutes,
     trainingSessions,
@@ -377,9 +397,9 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
         { label: 'Steps ≥ minimum', value: adh('steps'), weight: 30 },
         { label: 'Protein target', value: adh('protein'), weight: 30 },
         { label: 'Calories', value: adh('calories'), weight: 20 * active('calories') },
-        { label: 'Vitamins', value: adh('vitamins'), weight: 10 * active('vitamins') },
+        { label: 'Supplements', value: adh('vitamins'), weight: 10 * active('vitamins') },
       ],
-      '40% sleep + 30% steps + 30% protein adherence (+ 20% calories, + 10% vitamins once unlocked), re-weighted',
+      '40% sleep + 30% steps + 30% protein adherence (+ 20% calories, + 10% supplements; steps only while scored), re-weighted',
     ),
     fitness: combine(
       'fitness',
@@ -444,14 +464,22 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
       [
         { label: 'Avg sleep vs 7.5h', value: metrics.avgSleep === null ? null : clamp01(metrics.avgSleep / 7.5), weight: 40 },
         { label: 'Sleep consistency', value: metrics.sleepSd === null ? null : clamp01(1 - metrics.sleepSd / 1.5), weight: 20 },
+        { label: 'Wake-time regularity', value: metrics.wakeSdMin === null ? null : clamp01(1 - (metrics.wakeSdMin - 15) / 75), weight: 20 },
         { label: 'Energy', value: metrics.avgEnergy === null ? null : (metrics.avgEnergy - 1) / 4, weight: 20 },
         { label: 'Low stress', value: metrics.avgStress === null ? null : (5 - metrics.avgStress) / 4, weight: 20 },
         { label: 'Daylight walk', value: adh('morningWalk'), weight: 15 * active('morningWalk') },
       ],
-      '40% avg sleep ÷ 7.5h + 20% (1 − sleep SD ÷ 1.5h) + 20% energy + 20% inverted stress + 15% daylight walk adherence, re-weighted',
+      '40% avg sleep ÷ 7.5h + 20% (1 − sleep SD ÷ 1.5h) + 20% energy + 20% inverted stress + 20% wake-time regularity (SD 15 min = full, 90 min = zero) + 15% daylight walk adherence, re-weighted',
     ),
     consistency: { domain: 'consistency', score: null, parts: [], formula: '' },
   };
+
+  // Your own habits count toward their area (weight 15 each), alongside the built-in parts.
+  for (const spec of HABITS) {
+    if (!spec.custom || spec.domain === 'consistency' || !(habits.get(spec.id)!.expected > 0)) continue;
+    const d = domains[spec.domain];
+    domains[spec.domain] = combine(spec.domain, [...d.parts, { label: spec.name, value: adh(spec.id), weight: 15 }], `${d.formula}${d.formula ? ' ' : ''}+ ${spec.name} (your habit, 15)`);
+  }
 
   const scheduled = [...habits.values()].filter((h) => h.adherence !== null);
   const habitAdherence = scheduled.length ? mean(scheduled.map((h) => h.adherence!)) : null;

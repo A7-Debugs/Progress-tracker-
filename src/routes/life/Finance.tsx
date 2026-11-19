@@ -16,6 +16,13 @@ import { useLife } from '@/lib/life/useLife';
 import { derive, emergencyFundMonths, fiStatus, gt3rsReadiness, looksDoubleCounted } from '@/lib/life/finance';
 import { AlertTriangle } from 'lucide-react';
 import type { FinanceSnapshot, LifeProfile } from '@/lib/life/types';
+import { monthEarnings, recurringTotal, spentInMonth } from '@/lib/life/earnings';
+import { Earnings } from './Earnings';
+
+interface Suggestion {
+  value: number;
+  text: string;
+}
 
 type NumKey = Exclude<keyof FinanceSnapshot, 'id' | 'month' | 'notes' | 'createdAt' | 'updatedAt' | 'spendingIncludesContributions'>;
 
@@ -66,6 +73,7 @@ export default function Finance() {
   const ctx = useLife();
   const toast = useToast();
   const [editing, setEditing] = useState<FinanceSnapshot | null>(null);
+  const [autoNotes, setAutoNotes] = useState<Partial<Record<NumKey, Suggestion>>>({});
 
   const d = useMemo(() => {
     if (!ctx) return null;
@@ -85,14 +93,44 @@ export default function Finance() {
   const cur = profile.currency;
   const money = (x: number | null | undefined) => (x == null ? '—' : `${cur}${Math.round(x).toLocaleString()}`);
 
+  /** Monthly flows worked out from pay, check-ins and bank imports. */
+  function suggestions(month: string): Partial<Record<NumKey, Suggestion>> {
+    const pay = ctx!.profile.pay;
+    const out: Partial<Record<NumKey, Suggestion>> = {};
+    const earn = monthEarnings(pay, ctx!.checkins, month);
+    if (earn.payslip) out.netIncome = { value: earn.payslip.net, text: 'from your payslip' };
+    else if (earn.hours > 0) out.netIncome = { value: Math.round(earn.estNet), text: `${earn.hours.toFixed(1)} h logged × rate × take-home % (add the payslip for the exact figure)` };
+    const prop = recurringTotal(pay, 'property');
+    if (prop > 0) out.propertyContribution = { value: prop, text: 'recurring property transfer (Cyprus build)' };
+    const spent = spentInMonth(ctx!.checkins, pay?.bankMonths ?? [], month);
+    if (spent.source !== 'none')
+      out.spending = { value: Math.round(spent.amount), text: spent.source === 'bank' ? 'bank import (transfers & Cyprus left out)' : 'spending entered at check-ins — check it covers the whole month' };
+    return out;
+  }
+
+  /** New snapshots take every suggestion; existing ones only fill blanks (others are offered with a "Use" button). */
+  function openSnap(snap: FinanceSnapshot, isNew: boolean) {
+    const sug = suggestions(snap.month);
+    const next = { ...snap };
+    for (const [k, v] of Object.entries(sug) as [NumKey, Suggestion][]) {
+      if (isNew || next[k] == null) {
+        next[k] = v.value;
+        if (k === 'spending') next.spendingIncludesContributions = false;
+      }
+    }
+    setAutoNotes(sug);
+    setEditing(next);
+  }
+
   function startNew() {
     // Early in a month you're usually closing off the previous one (e.g. entering October on 1 Nov).
     const today = todayStr();
     const month = Number(today.slice(8, 10)) <= 10 ? format(subMonths(parseISO(today), 1), 'yyyy-MM') : today.slice(0, 7);
     const existing = ctx!.finance.find((f) => f.month === month);
-    // Carry balances forward from the last snapshot so a monthly update takes seconds.
+    if (existing) return openSnap(existing, false);
+    // Carry balances forward from the last snapshot so a monthly update takes seconds; flows come from suggestions.
     const last = ctx!.finance[ctx!.finance.length - 1];
-    setEditing(existing ?? (last ? { ...last, id: month, month, notes: '', createdAt: Date.now(), updatedAt: Date.now() } : emptySnap(month)));
+    openSnap(last ? { ...last, id: month, month, notes: '', createdAt: Date.now(), updatedAt: Date.now() } : emptySnap(month), true);
   }
 
   async function saveSnap(s: FinanceSnapshot, originalId: string) {
@@ -159,6 +197,8 @@ export default function Finance() {
             <FiSpendInput current={d.fi.annualSpend} />
           </Card>
         )}
+
+        <Earnings ctx={ctx} />
 
         <SectionTitle>Financial independence</SectionTitle>
         <Card className="p-4">
@@ -255,7 +295,7 @@ export default function Finance() {
                 </p>
               </div>
               <div className="flex shrink-0">
-                <button onClick={() => setEditing(s)} className="h-8 w-8 flex items-center justify-center text-base-400 hover:text-base-100" aria-label="Edit">
+                <button onClick={() => openSnap(s, false)} className="h-8 w-8 flex items-center justify-center text-base-400 hover:text-base-100" aria-label="Edit">
                   <Pencil size={15} />
                 </button>
                 <button onClick={() => removeSnap(s.id)} className="h-8 w-8 flex items-center justify-center text-base-500 hover:text-danger" aria-label="Delete">
@@ -273,7 +313,20 @@ export default function Finance() {
         </Card>
       </div>
 
-      {editing && <SnapshotDialog snap={editing} all={ctx.finance} currency={cur} onClose={() => setEditing(null)} onSave={saveSnap} />}
+      {editing && <SnapshotDialog
+          snap={editing}
+          all={ctx.finance}
+          currency={cur}
+          auto={autoNotes}
+          onClose={() => {
+            setEditing(null);
+            setAutoNotes({});
+          }}
+          onSave={(snap, id) => {
+            setAutoNotes({});
+            return saveSnap(snap, id);
+          }}
+        />}
     </div>
   );
 }
@@ -282,12 +335,14 @@ function SnapshotDialog({
   snap,
   all,
   currency,
+  auto,
   onClose,
   onSave,
 }: {
   snap: FinanceSnapshot;
   all: FinanceSnapshot[];
   currency: string;
+  auto: Partial<Record<NumKey, Suggestion>>;
   onClose: () => void;
   onSave: (s: FinanceSnapshot, originalId: string) => void;
 }) {
@@ -307,6 +362,19 @@ function SnapshotDialog({
             </label>
             <Input type="number" inputMode="decimal" value={s[f.key] ?? ''} onChange={(e) => setS({ ...s, [f.key]: e.target.value === '' ? null : Number(e.target.value) })} />
             <span className="text-[10px] text-base-500">{f.hint}</span>
+            {auto[f.key] &&
+              (s[f.key] === auto[f.key]!.value ? (
+                <span className="text-[10px] text-accent">Auto: {auto[f.key]!.text}</span>
+              ) : (
+                <button
+                  type="button"
+                  className="text-left text-[10px] text-accent underline"
+                  onClick={() => setS({ ...s, [f.key]: auto[f.key]!.value, ...(f.key === 'spending' ? { spendingIncludesContributions: false } : {}) })}
+                >
+                  Use {currency}
+                  {Math.round(auto[f.key]!.value).toLocaleString()} ({auto[f.key]!.text})
+                </button>
+              ))}
             {sw.get(f.key) && (
               <span className="text-[10px] text-warn">
                 ⚠ {sw.get(f.key)!.pct > 0 ? '+' : ''}
