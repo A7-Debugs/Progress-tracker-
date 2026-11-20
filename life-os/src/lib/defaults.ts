@@ -2,17 +2,18 @@ import type { LifeOsDB } from './db';
 import type { Category, DashboardCard, DateStr, Difficulty, Frequency, Horizon, Measurement, Profile, Settings, TimeOfDay, XpConfig } from './types';
 
 export const BUILTIN_CATEGORIES: Omit<Category, 'order' | 'archived' | 'builtin'>[] = [
-  { id: 'career', name: 'Career & Professional', color: '#6e7bff', icon: 'Briefcase' },
-  { id: 'finance', name: 'Finance & Wealth', color: '#2fb67c', icon: 'Wallet' },
-  { id: 'health', name: 'Health & Fitness', color: '#ef6461', icon: 'HeartPulse' },
-  { id: 'education', name: 'Education & Knowledge', color: '#e0a33b', icon: 'GraduationCap' },
-  { id: 'relationships', name: 'Relationships & Family', color: '#d1679e', icon: 'Users' },
-  { id: 'personal', name: 'Personal Development', color: '#9a7bf0', icon: 'Sprout' },
-  { id: 'lifestyle', name: 'Lifestyle & Experiences', color: '#3aa9d9', icon: 'Compass' },
-  { id: 'business', name: 'Business & Entrepreneurship', color: '#d9773a', icon: 'Rocket' },
+  { id: 'career', name: 'Career & Professional', color: '#2a78d6', icon: 'Briefcase' },
+  { id: 'finance', name: 'Finance & Wealth', color: '#eb6834', icon: 'Wallet' },
+  { id: 'health', name: 'Health & Fitness', color: '#1baf7a', icon: 'HeartPulse' },
+  { id: 'education', name: 'Education & Knowledge', color: '#eda100', icon: 'GraduationCap' },
+  { id: 'relationships', name: 'Relationships & Family', color: '#e87ba4', icon: 'Users' },
+  { id: 'personal', name: 'Personal Development', color: '#008300', icon: 'Sprout' },
+  { id: 'lifestyle', name: 'Lifestyle & Experiences', color: '#6250d6', icon: 'Compass' },
+  { id: 'business', name: 'Business & Entrepreneurship', color: '#e34948', icon: 'Rocket' },
 ];
 
-export const CATEGORY_COLORS = ['#6e7bff', '#2fb67c', '#ef6461', '#e0a33b', '#d1679e', '#9a7bf0', '#3aa9d9', '#d9773a', '#7d8a99', '#4fb3a9'];
+/** Validated categorical order (colour-blind-safe adjacent pairs). Custom categories continue the sequence. */
+export const CATEGORY_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 
 export const DEFAULT_XP: XpConfig = {
   taskEasy: 10,

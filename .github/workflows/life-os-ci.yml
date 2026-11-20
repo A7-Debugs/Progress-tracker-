@@ -1,0 +1,30 @@
+# Tests and builds Life OS (life-os/) on every push or pull request that touches it.
+name: Life OS CI
+
+on:
+  push:
+    paths: ['life-os/**', '.github/workflows/life-os-ci.yml']
+  pull_request:
+    paths: ['life-os/**']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: life-os
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: life-os/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: life-os-dist
+          path: life-os/dist

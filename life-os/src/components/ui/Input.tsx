@@ -1,46 +1,13 @@
 import { type InputHTMLAttributes, forwardRef, type TextareaHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
-    <input
-      ref={ref}
-      className={cn(
-        'h-11 w-full rounded-xl bg-base-850 border border-base-700 px-3 text-[15px] text-base-50 placeholder:text-base-400 outline-none transition-colors focus:border-accent/60 focus:ring-2 focus:ring-accent/15',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+const base = 'w-full rounded-lg bg-surface border border-line text-[15px] sm:text-sm text-fg placeholder:text-fg-3 outline-none transition-colors focus:border-accent focus:ring-3 focus:ring-accent/15';
+
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => <input ref={ref} className={cn(base, 'h-10 px-3', className)} {...props} />);
 Input.displayName = 'Input';
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className, ...props }, ref) => (
-    <textarea
-      ref={ref}
-      className={cn(
-        'w-full rounded-xl bg-base-850 border border-base-700 px-3 py-2 text-[15px] text-base-50 placeholder:text-base-400 outline-none transition-colors focus:border-accent/60 focus:ring-2 focus:ring-accent/15 resize-none',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, rows = 3, ...props }, ref) => <textarea ref={ref} rows={rows} className={cn(base, 'px-3 py-2 resize-y min-h-[72px]', className)} {...props} />);
 Textarea.displayName = 'Textarea';
 
-export const NumberField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
-    <input
-      ref={ref}
-      type="number"
-      inputMode="decimal"
-      className={cn(
-        'h-12 w-full rounded-xl bg-base-850 border border-base-700 px-3 text-center text-lg font-semibold text-base-50 placeholder:text-base-400 placeholder:font-normal outline-none transition-colors focus:border-accent/60 focus:ring-2 focus:ring-accent/15',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+export const NumberField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => <input ref={ref} type="number" inputMode="decimal" className={cn(base, 'h-10 px-3 tnum', className)} {...props} />);
 NumberField.displayName = 'NumberField';
