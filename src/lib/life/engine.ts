@@ -474,11 +474,11 @@ export function evaluatePeriod(ctx: LifeContext, start: string, end: string): Pe
     consistency: { domain: 'consistency', score: null, parts: [], formula: '' },
   };
 
-  // Your own habits count toward their area (weight 15 each), alongside the built-in parts.
+  // Your own habits and optional unlocks count toward their area (weight 15 each), alongside the built-in parts.
   for (const spec of HABITS) {
-    if (!spec.custom || spec.domain === 'consistency' || !(habits.get(spec.id)!.expected > 0)) continue;
+    if (!(spec.custom || spec.optional) || spec.domain === 'consistency' || !(habits.get(spec.id)!.expected > 0)) continue;
     const d = domains[spec.domain];
-    domains[spec.domain] = combine(spec.domain, [...d.parts, { label: spec.name, value: adh(spec.id), weight: 15 }], `${d.formula}${d.formula ? ' ' : ''}+ ${spec.name} (your habit, 15)`);
+    domains[spec.domain] = combine(spec.domain, [...d.parts, { label: spec.name, value: adh(spec.id), weight: 15 }], `${d.formula}${d.formula ? ' ' : ''}+ ${spec.name} (${spec.custom ? 'your habit' : 'unlocked'}, 15)`);
   }
 
   const scheduled = [...habits.values()].filter((h) => h.adherence !== null);

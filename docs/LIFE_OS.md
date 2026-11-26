@@ -310,3 +310,64 @@ The GT3 RS is treated as a symbol of financial independence, not a purchase targ
   - bank CSVs are read on the device and only monthly totals are kept
   - payslip figures are typed in (PDFs are never read)
   - backups you export include these figures, so store them privately
+
+## 12. Assets, unlocks and analytics
+
+### Work hours
+- Log the hours you are **paid** for. If you'd rather log clock-in to clock-out, set your unpaid break under Money → Pay settings. It's taken off any shift over 6 hours, the UK legal break threshold.
+
+### Assets that grow every month
+- Every recurring transfer adds to the balance you choose:
+  - Cyprus build → property equity
+  - ISA or stocks → investments
+  - pension → pension
+  - savings → cash
+  - bills → nothing
+- **Your assets now** (Money) shows the latest snapshot plus every transfer since, so balances rise on each transfer date.
+- **Asset mix by month** charts the history.
+- **New monthly snapshots** fill in:
+  - balances carried forward plus that month's transfers
+  - "invested" and "property contributions" for the month
+- **Workplace pension** and other salary-sacrifice transfers: tick "taken from salary" so they aren't taken off take-home a second time.
+- **Market growth isn't guessed.** Update balances from your apps in the monthly snapshot to capture gains and falls in value.
+
+### Habit unlocks (gamified)
+- **Unlock progress:** a progress bar to the next level, using the same 3-week adherence rule as level-ups.
+- **Locked habits by level:**
+  - Level-unlock habits switch on automatically.
+  - **Optional** science-based habits become *available to add*, so you stay under the habit cap:
+
+| Level | Optional habit | Evidence |
+|---|---|---|
+| 2 | Caffeine cut-off (none after 2pm) | Drake et al. 2013 |
+| 2 | Mindful news (one check after deep work) | Holman et al. 2014 |
+| 3 | Zone 2 cardio | WHO; Mandsager et al. 2018 |
+| 3 | Fermented food | Wastyk et al. 2021 |
+| 4 | Time in nature | White et al. 2019 |
+| 5 | Deliberate cold | Søberg et al. 2021 |
+
+- **Mastery badges** use 30-day consistency: Bronze 70%, Silver 80%, Gold 90%.
+
+### Health analytics and Career & development (Me)
+- **Health analytics:**
+  - 30-day stats compared with the 30 days before
+  - sleep hours, wake time and regularity
+  - energy, mood and stress
+  - training, steps, health-habit adherence and sick days
+- **Career & development:**
+  - deep work by week and by weekday
+  - 90-day goal pace
+  - paid hours and take-home by week
+  - reading
+- **"What your data says":** your own comparisons, for example "Energy after 7h+ sleep: 2.4 vs 2.1". Each needs 5+ days on both sides, and they're relationships, not proof of cause.
+
+### Dashboard: what's working · what's not
+- Habits are compared over the last 2 weeks against the 2 weeks before:
+  - **working:** 85% or more, or improving fast
+  - **not working:** under 60%, or slipping, shown with a smaller version to try
+- **Your clearest data-backed levers:** "keep doing", or "lever not pulled" when the helpful behaviour happens on less than half of days.
+- **Needs 7+ check-ins** in the last 2 weeks, so unlogged days don't read as 0%.
+
+### Fixes
+- System-check alerts now have a one-tap button. For example, "Turn Plan tomorrow back on" restores the habit, checking the habit cap first.
+- The "paused habit is helping you" alert no longer shows for a habit you removed on purpose. A removed Plan tomorrow is only flagged if your deep work actually drops.

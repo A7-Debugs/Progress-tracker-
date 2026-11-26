@@ -15,6 +15,13 @@ export type HabitId =
   | 'calories'
   | 'vitamins'
   | 'morningWalk'
+  // Optional unlocks: available at a level, scored only once you add them
+  | 'caffeine'
+  | 'news'
+  | 'zone2'
+  | 'fermented'
+  | 'nature'
+  | 'cold'
   /** Habits you create yourself. */
   | `c-${string}`;
 
@@ -214,12 +221,21 @@ export interface HabitStatus {
   past?: { state: 'removed' | 'trackOnly'; from: string; to: string }[];
 }
 
+/** Snapshot balance a transfer adds to. */
+export type AssetKey = 'investmentPropertyEquity' | 'homeValue' | 'investments' | 'pension' | 'cash' | 'emergencyFund' | 'carFund';
+
 export interface RecurringTransfer {
   id: string;
   label: string;
   amount: number;
   dayOfMonth: number;
-  kind: 'property' | 'invest' | 'savings' | 'bill';
+  kind: 'property' | 'invest' | 'pension' | 'savings' | 'bill';
+  /** Which balance it builds (bills build nothing). Defaults from `kind`. */
+  asset?: AssetKey | null;
+  /** Taken from salary before you're paid (e.g. workplace pension) — not deducted from take-home again. */
+  fromSalary?: boolean;
+  /** First month it applies (yyyy-MM); earlier months aren't counted. */
+  since?: string;
 }
 
 export interface Payslip {
@@ -254,6 +270,8 @@ export interface PaySettings {
   recurring: RecurringTransfer[];
   payslips: Payslip[];
   bankMonths: BankMonth[];
+  /** Unpaid break per shift (minutes), taken off shifts longer than 6 hours — so you can log clock-in to clock-out time. */
+  unpaidBreakMin?: number;
 }
 
 export interface GoalNode {
@@ -300,6 +318,8 @@ export interface LifeProfile {
   pay?: PaySettings;
   /** One-off data migrations already applied (by name). */
   migrations?: string[];
+  /** Optional unlocked habits you've added, with the date they start being scored. */
+  optIn?: Partial<Record<HabitId, string>>;
   pausedHabits: HabitId[];
   fiAnnualSpend: number | null; // null → derive from snapshots
   withdrawalRate: number; // 0.04

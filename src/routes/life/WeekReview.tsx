@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { AlertTriangle, ChevronLeft, ChevronRight, Lightbulb, Mail, Save, Share2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { Card } from '@/components/ui/Card';
+import { FlagList } from '@/components/life/FlagList';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea } from '@/components/ui/Input';
@@ -208,12 +209,7 @@ export function WeekReview({ ctx }: { ctx: LifeContext }) {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-warn flex items-center gap-1.5 mb-2">
             <AlertTriangle size={12} /> Don't game the system
           </p>
-          {d.flags.map((f) => (
-            <div key={f.title} className="mb-2 last:mb-0">
-              <p className="text-sm font-semibold text-base-50">{f.title}</p>
-              <p className="text-xs text-base-400 leading-relaxed">{f.body}</p>
-            </div>
-          ))}
+          <FlagList ctx={ctx} flags={d.flags} />
         </Card>
       )}
 

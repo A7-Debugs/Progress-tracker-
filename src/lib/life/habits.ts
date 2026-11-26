@@ -38,9 +38,161 @@ export interface HabitSpec {
   /** Custom habits: scored from this date. */
   startDate?: string;
   custom?: boolean;
+  /** Unlocks at `unlock` level as an option; scored only after you add it (profile.optIn). */
+  optional?: boolean;
+  /** The evidence, shown on the unlock card. */
+  science?: string;
 }
 
 const same = (t: LevelTarget): Record<Level, LevelTarget> => ({ 1: t, 2: t, 3: t, 4: t, 5: t, 6: t });
+
+/** Optional science-based habits: unlocked by level, added by choice so you stay under the habit cap. */
+function optionalHabit(o: {
+  id: HabitId;
+  name: string;
+  domain: Domain;
+  secondary?: Domain[];
+  input: 'bool' | 'minutes';
+  min?: number;
+  ideal?: number;
+  perWeek: number;
+  unlock: Level;
+  why: string;
+  science: string;
+  trigger: string;
+  minLabel: string;
+  idealLabel: string;
+  est: [number, number];
+  smaller: string;
+}): HabitSpec {
+  const t = { min: o.min ?? 1, ideal: o.ideal ?? 1, perWeek: o.perWeek };
+  return {
+    id: o.id,
+    name: o.name,
+    domain: o.domain,
+    secondary: o.secondary ?? [],
+    input: o.input,
+    unit: o.input === 'minutes' ? 'min' : '',
+    why: o.why,
+    science: o.science,
+    goalLink: o.domain === 'fitness' || o.domain === 'health' || o.domain === 'recovery' ? 'd90-health' : 'd90-personal',
+    trigger: o.trigger,
+    track: o.input === 'bool' ? 'One tap in the check-in.' : 'Enter minutes in the check-in.',
+    minLabel: o.minLabel,
+    idealLabel: o.idealLabel,
+    estMinutes: { min: o.est[0], ideal: o.est[1] },
+    difficulty: 2,
+    impact: 3,
+    unlock: o.unlock,
+    targets: same(t),
+    minimumMode: null,
+    highBump: 0,
+    redesign: { smaller: o.smaller, environment: 'Make the cue visible where the habit happens.', trigger: o.trigger },
+    optional: true,
+  };
+}
+
+const OPTIONAL_HABITS: HabitSpec[] = [
+  optionalHabit({
+    id: 'caffeine',
+    name: 'Caffeine cut-off',
+    domain: 'recovery',
+    secondary: ['health'],
+    input: 'bool',
+    perWeek: 5,
+    unlock: 2,
+    why: 'Caffeine late in the day quietly shortens and lightens your sleep, even when you fall asleep fine.',
+    science: 'Drake et al. 2013 (J Clin Sleep Med): caffeine taken 6 hours before bed still cut sleep by about an hour. Huberman also suggests waiting 90–120 min after waking for the first coffee.',
+    trigger: 'Last coffee with lunch; after 2pm switch to decaf or water.',
+    minLabel: 'None after 2pm',
+    idealLabel: 'None after 2pm',
+    est: [0, 0],
+    smaller: 'Move the cut-off to 4pm first, then 2pm.',
+  }),
+  optionalHabit({
+    id: 'news',
+    name: 'Mindful news',
+    domain: 'personal',
+    secondary: ['recovery'],
+    input: 'bool',
+    perWeek: 5,
+    unlock: 2,
+    why: 'One deliberate news check keeps you informed without the stress and lost focus of constant checking.',
+    science: 'Holman, Garfin & Silver 2014 (PNAS): hours of news exposure predicted acute stress more than being directly affected. Checking only after deep work protects your best focus hours.',
+    trigger: 'One 10-minute check after your deep-work block; nothing in the hour before bed.',
+    minLabel: 'One check, ≤10 min',
+    idealLabel: 'One check, ≤10 min',
+    est: [10, 10],
+    smaller: 'Just no news before deep work.',
+  }),
+  optionalHabit({
+    id: 'zone2',
+    name: 'Zone 2 cardio',
+    domain: 'fitness',
+    secondary: ['health'],
+    input: 'minutes',
+    min: 20,
+    ideal: 45,
+    perWeek: 2,
+    unlock: 3,
+    why: 'Easy aerobic work (you can still talk in full sentences) builds the engine that recovery, energy and long-term health run on.',
+    science: 'WHO/NHS: 150 min of moderate activity a week. Cardiorespiratory fitness is one of the strongest predictors of all-cause mortality (Mandsager et al. 2018, JAMA). Huberman suggests ~150–180 min/week of Zone 2.',
+    trigger: 'Incline walk or easy bike straight after a lifting session, or a brisk walk home.',
+    minLabel: '20 min easy',
+    idealLabel: '45 min easy',
+    est: [20, 45],
+    smaller: '15 minutes of brisk walking counts.',
+  }),
+  optionalHabit({
+    id: 'fermented',
+    name: 'Fermented food',
+    domain: 'health',
+    input: 'bool',
+    perWeek: 5,
+    unlock: 3,
+    why: 'A daily serving of fermented food supports a more diverse gut microbiome, which is linked to fewer illness setbacks.',
+    science: 'Wastyk et al. 2021 (Cell, Stanford): a high-fermented-food diet increased microbiome diversity and lowered 19 inflammatory markers in 10 weeks.',
+    trigger: 'Greek yoghurt or kefir with breakfast; kimchi or sauerkraut with dinner.',
+    minLabel: '1 serving',
+    idealLabel: '1–2 servings',
+    est: [1, 2],
+    smaller: 'A pot of yoghurt counts.',
+  }),
+  optionalHabit({
+    id: 'nature',
+    name: 'Time in nature',
+    domain: 'recovery',
+    secondary: ['personal'],
+    input: 'minutes',
+    min: 15,
+    ideal: 30,
+    perWeek: 4,
+    unlock: 4,
+    why: 'Green space lowers stress and improves mood — and it stacks with your daylight walk and Zone 2.',
+    science: 'White et al. 2019 (Scientific Reports, ~20,000 people): 120+ minutes a week in nature was linked to better health and wellbeing; below that, no benefit.',
+    trigger: 'Take the daylight walk or Zone 2 through a park or along water.',
+    minLabel: '15 min outdoors',
+    idealLabel: '30 min outdoors',
+    est: [15, 30],
+    smaller: 'Walk one green route you already pass.',
+  }),
+  optionalHabit({
+    id: 'cold',
+    name: 'Deliberate cold',
+    domain: 'recovery',
+    input: 'bool',
+    perWeek: 3,
+    unlock: 5,
+    why: 'Short cold exposure raises alertness and mood for hours. Keep it away from training that you want to build muscle from.',
+    science: 'Søberg et al. 2021 (Cell Reports Medicine): ~11 minutes of cold per week, split into short sessions. Huberman: avoid within ~4h after strength training, as it can blunt adaptation.',
+    trigger: 'Last 1–3 minutes of the morning shower on cold.',
+    minLabel: '1 min cold',
+    idealLabel: '3 min cold',
+    est: [1, 3],
+    smaller: '30 seconds at the end of the shower.',
+  }),
+];
+
 
 /** The built-in habit definitions. Use HABITS (built-ins with your edits, plus your own habits) everywhere else. */
 export const BUILTIN_HABITS: HabitSpec[] = [
@@ -493,6 +645,7 @@ export const BUILTIN_HABITS: HabitSpec[] = [
       trigger: 'Kettle on → supplements.',
     },
   },
+  ...OPTIONAL_HABITS,
 ];
 
 /**
@@ -556,10 +709,10 @@ export const CORE_V1: HabitId[] = ['sleep', 'morningWalk', 'train', 'steps', 'pr
 
 export const LEVELS: { level: Level; name: string; summary: string; unlocks: HabitId[] }[] = [
   { level: 1, name: 'Foundation', summary: 'A handful of small habits. Win by showing up, not by intensity.', unlocks: CORE_V1 },
-  { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading.', unlocks: ['read'] },
-  { level: 3, name: 'Momentum', summary: '45-minute study minimum, 8k steps, add mobility/prehab.', unlocks: ['mobility'] },
-  { level: 4, name: 'Expansion', summary: 'Hour-long deep work, add relationships and an evening screen shutdown.', unlocks: ['connect', 'shutdown'] },
-  { level: 5, name: 'High Performance', summary: '5 training days, 6 study days, protein daily, add journaling.', unlocks: ['journal'] },
+  { level: 2, name: 'Consistency', summary: 'Train 4x/week, slightly longer study blocks, add 2 pages of reading. Optional: caffeine cut-off, mindful news.', unlocks: ['read'] },
+  { level: 3, name: 'Momentum', summary: '45-minute study minimum, 8k steps, add mobility/prehab. Optional: Zone 2, fermented food.', unlocks: ['mobility'] },
+  { level: 4, name: 'Expansion', summary: 'Hour-long deep work, add relationships and an evening screen shutdown. Optional: time in nature.', unlocks: ['connect', 'shutdown'] },
+  { level: 5, name: 'High Performance', summary: '5 training days, 6 study days, protein daily, add journaling. Optional: deliberate cold.', unlocks: ['journal'] },
   { level: 6, name: 'Elite Lifestyle', summary: 'Sustained high standards on autopilot. Elite means durable, not more.', unlocks: [] },
 ];
 
@@ -582,8 +735,12 @@ export const MODE_LABELS: Record<Mode, string> = {
 };
 
 /** Is the habit part of the system? Calories unlock by protein consistency (profile.calorie.unlockedAt), everything else by level. */
-export function isUnlocked(spec: HabitSpec, level: Level, profile: Pick<LifeProfile, 'calorie'>, date?: string): boolean {
+export function isUnlocked(spec: HabitSpec, level: Level, profile: Pick<LifeProfile, 'calorie' | 'optIn'>, date?: string): boolean {
   if (spec.startDate && date && date < spec.startDate) return false;
+  if (spec.optional) {
+    const at = profile.optIn?.[spec.id];
+    return spec.unlock <= level && !!at && (!date || date >= at);
+  }
   if (spec.id === 'calories') {
     const at = profile.calorie?.unlockedAt;
     return !!at && (!date || date >= at);
@@ -622,6 +779,18 @@ export function withStatus(profile: Pick<LifeProfile, 'habitStatus'>, id: HabitI
 export function activeHabits(profile: Pick<LifeProfile, 'calorie' | 'level' | 'pausedHabits' | 'habitStatus'>, date?: string): HabitSpec[] {
   return HABITS.filter((h) => isUnlocked(h, profile.level, profile, date) && !profile.pausedHabits.includes(h.id) && !(date && offOn(profile, h.id, date)));
 }
+
+export type StatusAction = 'active' | 'paused' | 'trackOnly' | 'removed';
+
+/** Change one habit's status. Pauses live in pausedHabits; removed / track-only are dated so history keeps its score. */
+export function statusPatch(profile: LifeProfile, id: HabitId, to: StatusAction, today: string): Partial<LifeProfile> {
+  const paused = profile.pausedHabits.filter((x) => x !== id);
+  if (to === 'paused') return { pausedHabits: [...paused, id], habitStatus: withStatus(profile, id, 'active', today) };
+  return { pausedHabits: paused, habitStatus: withStatus(profile, id, to, today) };
+}
+
+/** Is the habit switched off today (paused, removed or track-only)? */
+export const isOff = (profile: Pick<LifeProfile, 'habitStatus' | 'pausedHabits'>, id: HabitId, date: string) => profile.pausedHabits.includes(id) || !!offOn(profile, id, date);
 
 /** Scored-habit cap: 8 at Level 1, +1 per level — more than this and adherence drops for all of them. */
 export const habitCap = (level: number) => 8 + (level - 1);

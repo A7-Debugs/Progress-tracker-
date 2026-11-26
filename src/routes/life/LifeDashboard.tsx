@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { AlertTriangle, ArrowUpRight, CalendarCheck, ChevronRight, ClipboardCheck, Flame, Gauge, Layers, LineChart, Target, TrendingUp, Utensils, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, CalendarCheck, CheckCircle2, ChevronRight, XCircle, ClipboardCheck, Flame, Gauge, Layers, LineChart, Target, TrendingUp, Utensils, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { FlagList } from '@/components/life/FlagList';
+import { UnlockRoadmap } from '@/components/life/UnlockRoadmap';
 import { RecoveryTools } from '@/components/life/RecoveryTools';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +17,7 @@ import { db } from '@/lib/db';
 import { goalPace } from '@/lib/life/goalPace';
 import { goalProgress, todayHabits } from '@/lib/life/summary';
 import { detectGaming, weeklyInsights } from '@/lib/life/insights';
+import { whatsWorking } from '@/lib/life/analytics';
 import { calorieStatus, calorieUnlockStatus, recommendProgression } from '@/lib/life/progression';
 import { gt3rsReadiness } from '@/lib/life/finance';
 
@@ -42,6 +45,7 @@ export default function LifeDashboard() {
       focus: plan?.focus?.trim() || null,
       progression: recommendProgression(ctx),
       flags: detectGaming(ctx),
+      ww: whatsWorking(ctx),
       mode: modeOn(ctx, ctx.today),
       gt: gt3rsReadiness(ctx.profile, ctx.finance),
       streaks: todayHabits(ctx).map((t) => ({ spec: t.spec, s: habitStreaks(ctx, t.spec) })),
@@ -174,6 +178,51 @@ export default function LifeDashboard() {
           <p className="text-sm text-base-50 mt-1.5 leading-relaxed">{data.focus ?? data.rec.body}</p>
         </Card>
 
+        {/* What's working / what's not */}
+        <Card className="p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-base-400 mb-2.5">What's working · what's not</p>
+          {data.ww.working.length === 0 && data.ww.notWorking.length === 0 ? (
+            <p className="text-xs text-base-500">Needs about 2 weeks of check-ins to compare. Keep logging — 60 seconds a day.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {data.ww.working.map((w) => (
+                <div key={w.title} className="flex gap-2.5">
+                  <CheckCircle2 size={16} className="text-accent shrink-0 mt-0.5" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-base-50">
+                      {w.title} <span className="text-[11px] font-normal text-accent">· working</span>
+                    </p>
+                    <p className="text-xs text-base-400 leading-relaxed">{w.detail}</p>
+                  </div>
+                </div>
+              ))}
+              {data.ww.notWorking.map((w) => (
+                <div key={w.title} className="flex gap-2.5">
+                  <XCircle size={16} className="text-warn shrink-0 mt-0.5" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-base-50">
+                      {w.title} <span className="text-[11px] font-normal text-warn">· not working</span>
+                    </p>
+                    <p className="text-xs text-base-400 leading-relaxed">{w.detail}</p>
+                    {w.action && <p className="text-xs text-base-100 mt-1">→ {w.action}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {data.ww.needsData && (data.ww.working.length > 0 || data.ww.notWorking.length > 0) && (
+            <p className="text-[11px] text-base-500 mt-2">Habit trends appear once you have 7+ check-ins in the last 2 weeks.</p>
+          )}
+          <div className="flex gap-4 mt-3">
+            <button className="text-xs text-accent flex items-center gap-0.5" onClick={() => navigate('/health')}>
+              Health analytics <ChevronRight size={12} />
+            </button>
+            <button className="text-xs text-accent flex items-center gap-0.5" onClick={() => navigate('/career')}>
+              Career analytics <ChevronRight size={12} />
+            </button>
+          </div>
+        </Card>
+
         {/* Today's habits */}
         <SectionTitle right={<span className="text-xs text-base-500">{dailyToday.filter((t) => t.hit === 'min' || t.hit === 'ideal').length}/{dailyToday.length} daily done</span>}>
           Today's habits
@@ -234,14 +283,7 @@ export default function LifeDashboard() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-warn flex items-center gap-1.5 mb-2">
               <AlertTriangle size={13} /> System check
             </p>
-            <div className="flex flex-col gap-2.5">
-              {data.flags.slice(0, 2).map((f) => (
-                <div key={f.title}>
-                  <p className="text-sm font-semibold text-base-50">{f.title}</p>
-                  <p className="text-xs text-base-400 leading-relaxed">{f.body}</p>
-                </div>
-              ))}
-            </div>
+            <FlagList ctx={ctx} flags={data.flags.slice(0, 2)} />
           </Card>
         )}
 
@@ -328,6 +370,8 @@ export default function LifeDashboard() {
             </p>
           )}
         </Card>
+
+        <UnlockRoadmap ctx={ctx} compact />
 
         {/* Streaks */}
         <SectionTitle>Consistency (streaks matter less)</SectionTitle>

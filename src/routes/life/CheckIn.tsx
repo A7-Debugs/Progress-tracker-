@@ -15,7 +15,7 @@ import { Chips, Collapsible, Scale5, TriPicker } from '@/components/life/Visuals
 import { useLife } from '@/lib/life/useLife';
 import { HABITS, HABIT_BY_ID, formatTarget } from '@/lib/life/habits';
 import { DEFAULT_SUPPLEMENTS } from '@/lib/life/defaults';
-import { grossFor, rateOn, takeHomeRatio } from '@/lib/life/earnings';
+import { grossFor, paidHours, rateOn, takeHomeRatio } from '@/lib/life/earnings';
 import { addDaysStr, scheduleOn, targetExtras, toMinutes } from '@/lib/life/engine';
 import { derivedFields } from '@/lib/life/sync';
 import type { DailyCheckin, HabitId, Hit } from '@/lib/life/types';
@@ -78,7 +78,7 @@ export default function CheckIn() {
       morningWalk: s('morningWalk'),
       connect: s('connect'),
       vitamins: s('vitamins'),
-      custom: HABITS.filter((h) => h.custom).flatMap((h) => {
+      custom: HABITS.filter((h) => h.custom || h.optional).flatMap((h) => {
         const t = scheduleOn(ctx, h, date);
         return t ? [{ spec: h, t, label: formatTarget(h, t) }] : [];
       }),
@@ -288,7 +288,7 @@ export default function CheckIn() {
           {sched.custom
             .filter((c) => c.spec.input === 'bool')
             .map((c) => (
-              <Toggle key={c.spec.id} label={c.spec.name} sub="Your habit" checked={form.habits[c.spec.id] === 'ideal'} onChange={(v) => setBool(c.spec.id, v)} />
+              <Toggle key={c.spec.id} label={c.spec.name} sub={c.spec.custom ? 'Your habit' : `Unlocked habit · ${c.spec.minLabel}`} checked={form.habits[c.spec.id] === 'ideal'} onChange={(v) => setBool(c.spec.id, v)} />
             ))}
           <Toggle label="Meaningful time with someone" sub={sched.connect ? 'Habit · 3x/week' : 'Tracked for your Relationships score'} checked={form.habits.connect === 'ideal'} onChange={(v) => setBool('connect', v)} />
           <Toggle label="Weekly money check done" sub="Once a week (auto-ticks when you update a finance snapshot)" checked={form.habits.moneyReview === 'ideal'} onChange={(v) => setBool('moneyReview', v)} />
@@ -313,7 +313,12 @@ export default function CheckIn() {
         </Q>
         <RecoveryTools energy={form.energy} stress={form.stress} sick={!!form.sick} />
 
-        <Q title="Work" sub={`£${rate.toFixed(2)}/h gross`}>
+        <Q title="Work: hours at work today" sub={`£${rate.toFixed(2)}/h gross`}>
+          <p className="text-[11px] text-base-500 -mt-1 mb-2">
+            {(ctx.profile.pay?.unpaidBreakMin ?? 0) > 0
+              ? `Clock in → clock out. Your ${ctx.profile.pay!.unpaidBreakMin}-min unpaid break is taken off shifts over 6h automatically.`
+              : 'Enter the hours you are paid for (leave out unpaid breaks). Or set your unpaid break in Money → Pay settings and log clock in → clock out.'}
+          </p>
           <div className="flex gap-2 items-center flex-wrap">
             <Input type="number" inputMode="decimal" placeholder="hours" value={form.workHours ?? ''} onChange={(e) => set('workHours', toNum(e.target.value))} className="w-24 text-center" />
             <Chips values={[0, 4, 6, 7.5, 8, 9, 10]} current={form.workHours} onPick={(v) => set('workHours', v)} />
@@ -332,7 +337,7 @@ export default function CheckIn() {
           </div>
           {(form.workHours ?? 0) > 0 && (
             <p className="text-xs text-accent mt-2">
-              ≈ £{gross.toFixed(2)} gross · ~£{(gross * ratio.ratio).toFixed(2)} take-home{ratio.source === 'default' ? ' (estimate until your first payslip)' : ''}
+              {paidHours(ctx.profile.pay, form.workHours) !== form.workHours && `${paidHours(ctx.profile.pay, form.workHours).toFixed(2)} paid h · `}≈ £{gross.toFixed(2)} gross · ~£{(gross * ratio.ratio).toFixed(2)} take-home{ratio.source === 'default' ? ' (estimate until your first payslip)' : ''}
             </p>
           )}
         </Q>

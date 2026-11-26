@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom';
-import { Scale, Camera, CalendarDays, Dumbbell, History, Settings, ChevronRight, Search, LayoutGrid, LineChart, Gauge, Layers, TrendingUp, Wrench } from 'lucide-react';
+import { Scale, Camera, CalendarDays, Dumbbell, History, Settings, ChevronRight, Search, LayoutGrid, LineChart, Gauge, Layers, TrendingUp, Wrench, HeartPulse, Briefcase } from 'lucide-react';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card } from '@/components/ui/Card';
 
 const ITEMS = [
   { to: '/system', icon: Gauge, label: 'The System', desc: 'Habits, levels, modes, scoring rules' },
   { to: '/goals', icon: Layers, label: 'Goal Tree', desc: 'Vision → 10y → 5y → 1y → 90d → habits' },
+  { to: '/health', icon: HeartPulse, label: 'Health Analytics', desc: 'Sleep, energy, stress, movement — and what drives them' },
+  { to: '/career', icon: Briefcase, label: 'Career & Development', desc: 'Deep work, study goals, work hours, earnings' },
   { to: '/trends', icon: TrendingUp, label: 'Life Trends', desc: 'Consistency, sleep, deep work, finance' },
   { to: '/programs', icon: LayoutGrid, label: 'Training Programs', desc: 'Splits & workout templates' },
   { to: '/analytics', icon: LineChart, label: 'Training Analytics', desc: 'Strength progression, volume, PRs' },

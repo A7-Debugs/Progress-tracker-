@@ -1,5 +1,5 @@
 import { addMonths, endOfMonth, format, parseISO } from 'date-fns';
-import type { BankMonth, DailyCheckin, PaySettings, Payslip } from './types';
+import type { BankMonth, DailyCheckin, PaySettings, Payslip, RecurringTransfer } from './types';
 
 /** Used until the first payslip is entered (UK basic-rate tax + NI + pension at this pay level). */
 export const DEFAULT_TAKE_HOME = 0.8;
@@ -15,8 +15,18 @@ export function rateOn(pay: PaySettings | undefined, date: string): number {
   return r;
 }
 
+/**
+ * Paid hours from the hours logged in the check-in. Log the time you were at work (clock in → clock out);
+ * an unpaid break set in Pay settings is taken off shifts over 6 hours (the UK legal break threshold).
+ */
+export function paidHours(pay: PaySettings | undefined, workHours: number | null | undefined): number {
+  const h = workHours ?? 0;
+  const brk = (pay?.unpaidBreakMin ?? 0) / 60;
+  return h > 6 && brk > 0 ? Math.max(0, h - brk) : h;
+}
+
 export function grossFor(pay: PaySettings | undefined, c: Pick<DailyCheckin, 'date' | 'workHours' | 'rateMultiplier'>): number {
-  return round2((c.workHours ?? 0) * rateOn(pay, c.date) * (c.rateMultiplier ?? 1));
+  return round2(paidHours(pay, c.workHours) * rateOn(pay, c.date) * (c.rateMultiplier ?? 1));
 }
 
 /** Take-home ÷ gross, averaged over the last 3 payslips (or the default until one is entered). */
@@ -58,23 +68,24 @@ export interface MonthEarnings {
 
 export function monthEarnings(pay: PaySettings | undefined, checkins: DailyCheckin[], month: string): MonthEarnings {
   const days = checkins.filter((c) => c.date.startsWith(month) && (c.workHours ?? 0) > 0);
-  const hours = days.reduce((a, c) => a + (c.workHours ?? 0), 0);
+  const hours = Math.round(days.reduce((a, c) => a + paidHours(pay, c.workHours), 0) * 100) / 100;
   const gross = round2(days.reduce((a, c) => a + grossFor(pay, c), 0));
   const estNet = round2(gross * takeHomeRatio(pay).ratio);
   const payslip = pay?.payslips.find((p) => p.month === month) ?? null;
   return { month, hours, daysWorked: days.length, gross, estNet, payslip, net: payslip?.net ?? estNet };
 }
 
-export function recurringTotal(pay: PaySettings | undefined, kind?: 'property' | 'invest' | 'savings' | 'bill'): number {
-  return (pay?.recurring ?? []).filter((r) => !kind || r.kind === kind).reduce((a, r) => a + r.amount, 0);
+/** Monthly total of recurring transfers paid out of take-home (salary-sacrifice ones like pension are excluded). */
+export function recurringTotal(pay: PaySettings | undefined, kind?: RecurringTransfer['kind']): number {
+  return (pay?.recurring ?? []).filter((r) => !r.fromSalary && (!kind || r.kind === kind)).reduce((a, r) => a + r.amount, 0);
 }
 
 /** Average hours per calendar day over the last 28 days of check-ins (days without hours count as 0). */
-export function avgDailyHours(checkins: DailyCheckin[], today: string): number | null {
-  const start = format(addMonths(parseISO(today), 0).getTime() - 27 * 86400000, 'yyyy-MM-dd');
+export function avgDailyHours(checkins: DailyCheckin[], today: string, pay?: PaySettings): number | null {
+  const start = format(parseISO(today).getTime() - 27 * 86400000, 'yyyy-MM-dd');
   const recent = checkins.filter((c) => c.date >= start && c.date <= today);
   if (recent.length < 7) return null;
-  return recent.reduce((a, c) => a + (c.workHours ?? 0), 0) / recent.length;
+  return recent.reduce((a, c) => a + paidHours(pay, c.workHours), 0) / recent.length;
 }
 
 export interface Projection {
@@ -92,7 +103,7 @@ export function projectMonth(pay: PaySettings | undefined, checkins: DailyChecki
   const soFar = monthEarnings(pay, checkins, month);
   const end = format(endOfMonth(parseISO(today)), 'yyyy-MM-dd');
   const daysLeft = Math.max(0, Math.round((parseISO(end).getTime() - parseISO(today).getTime()) / 86400000));
-  const perDay = avgDailyHours(checkins, today);
+  const perDay = avgDailyHours(checkins, today, pay);
   const rest = perDay === null ? 0 : perDay * daysLeft * rateOn(pay, today);
   const projectedGross = round2(soFar.gross + rest);
   return {

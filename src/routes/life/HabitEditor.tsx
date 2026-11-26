@@ -10,21 +10,14 @@ import { Dialog } from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/Toaster';
 import { SectionTitle } from '@/components/life/Visuals';
 import { addDaysStr, weekStartOf, type LifeContext } from '@/lib/life/engine';
-import { BUILTIN_HABITS, DOMAIN_LABELS, HABITS, habitCap, habitState, isUnlocked, withStatus, type HabitSpec, type HabitState } from '@/lib/life/habits';
+import { BUILTIN_HABITS, DOMAIN_LABELS, HABITS, habitCap, habitState, isUnlocked, statusPatch, type StatusAction, type HabitSpec, type HabitState } from '@/lib/life/habits';
 import type { CustomHabitDef, Domain, HabitId, LifeProfile } from '@/lib/life/types';
 
 const STATE_LABEL: Record<HabitState, string> = { active: 'Active', paused: 'Paused', trackOnly: 'Track only', removed: 'Removed', upcoming: 'Starts Monday' };
 const STATE_BADGE: Record<HabitState, 'accent' | 'neutral' | 'warn' | 'info' | 'danger'> = { active: 'accent', paused: 'warn', trackOnly: 'info', removed: 'neutral', upcoming: 'info' };
-type Action = 'active' | 'paused' | 'trackOnly' | 'removed';
+type Action = StatusAction;
 
 const selectCls = 'h-11 w-full rounded-xl bg-base-850 border border-base-700 px-3 text-sm text-base-50';
-
-/** Change one habit's status. Pauses live in pausedHabits; removed / track-only are dated so history keeps its score. */
-function statusPatch(profile: LifeProfile, id: HabitId, to: Action, today: string): Partial<LifeProfile> {
-  const paused = profile.pausedHabits.filter((x) => x !== id);
-  if (to === 'paused') return { pausedHabits: [...paused, id], habitStatus: withStatus(profile, id, 'active', today) };
-  return { pausedHabits: paused, habitStatus: withStatus(profile, id, to, today) };
-}
 
 export function HabitEditor({ ctx }: { ctx: LifeContext }) {
   const { profile, today } = ctx;

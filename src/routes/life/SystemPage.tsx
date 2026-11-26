@@ -14,6 +14,7 @@ import { AWARENESS_DAYS, CALORIE_BANDS, CALORIE_OFFSETS, DEFAULT_PER_KG, GOAL_LA
 import { Button } from '@/components/ui/Button';
 import { TIER_LABELS } from '@/lib/life/defaults';
 import { HabitEditor } from './HabitEditor';
+import { UnlockRoadmap } from '@/components/life/UnlockRoadmap';
 import type { CalorieGoal, Domain, LifeProfile, Mode } from '@/lib/life/types';
 
 const PRINCIPLES = [
@@ -70,6 +71,8 @@ export default function SystemPage() {
         {active.map((h) => (
           <HabitCard key={h.id} h={h} profile={profile} mode={mode} extras={extras} />
         ))}
+
+        <UnlockRoadmap ctx={ctx} />
 
         <HabitEditor ctx={ctx} />
 
