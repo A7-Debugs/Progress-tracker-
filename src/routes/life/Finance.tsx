@@ -15,8 +15,10 @@ import { COLORS } from '@/components/life/colors';
 import { useLife } from '@/lib/life/useLife';
 import { derive, emergencyFundMonths, fiStatus, gt3rsReadiness, looksDoubleCounted } from '@/lib/life/finance';
 import { AlertTriangle } from 'lucide-react';
-import type { FinanceSnapshot, LifeProfile } from '@/lib/life/types';
-import { monthEarnings, recurringTotal, spentInMonth } from '@/lib/life/earnings';
+import type { AssetKey, FinanceSnapshot, LifeProfile } from '@/lib/life/types';
+import { monthEarnings, spentInMonth } from '@/lib/life/earnings';
+import { carriedBalances, monthContributions } from '@/lib/life/assets';
+import { AssetsCard } from './AssetsCard';
 import { Earnings } from './Earnings';
 
 interface Suggestion {
@@ -94,14 +96,21 @@ export default function Finance() {
   const money = (x: number | null | undefined) => (x == null ? '—' : `${cur}${Math.round(x).toLocaleString()}`);
 
   /** Monthly flows worked out from pay, check-ins and bank imports. */
-  function suggestions(month: string): Partial<Record<NumKey, Suggestion>> {
+  function suggestions(month: string, isNew: boolean): Partial<Record<NumKey, Suggestion>> {
     const pay = ctx!.profile.pay;
     const out: Partial<Record<NumKey, Suggestion>> = {};
     const earn = monthEarnings(pay, ctx!.checkins, month);
     if (earn.payslip) out.netIncome = { value: earn.payslip.net, text: 'from your payslip' };
     else if (earn.hours > 0) out.netIncome = { value: Math.round(earn.estNet), text: `${earn.hours.toFixed(1)} h logged × rate × take-home % (add the payslip for the exact figure)` };
-    const prop = recurringTotal(pay, 'property');
-    if (prop > 0) out.propertyContribution = { value: prop, text: 'recurring property transfer (Cyprus build)' };
+    const mc = monthContributions(pay, month);
+    if (mc.property > 0) out.propertyContribution = { value: mc.property, text: 'recurring property transfers this month' };
+    if (mc.invested > 0) out.invested = { value: mc.invested, text: 'recurring investing + pension transfers this month' };
+    // Balances grow by the transfers made since the previous snapshot (market moves: update from your apps).
+    const prev = ctx!.finance.filter((f) => f.month < month).pop();
+    if (isNew && prev) {
+      const cb = carriedBalances(prev, pay, month);
+      for (const [k, v] of Object.entries(cb.values) as [AssetKey, number][]) out[k] = { value: Math.round(v), text: `${format(parseISO(`${prev.month}-01`), 'MMM')} balance + ${cb.notes[k]} — check against your app` };
+    }
     const spent = spentInMonth(ctx!.checkins, pay?.bankMonths ?? [], month);
     if (spent.source !== 'none')
       out.spending = { value: Math.round(spent.amount), text: spent.source === 'bank' ? 'bank import (transfers & Cyprus left out)' : 'spending entered at check-ins — check it covers the whole month' };
@@ -110,7 +119,7 @@ export default function Finance() {
 
   /** New snapshots take every suggestion; existing ones only fill blanks (others are offered with a "Use" button). */
   function openSnap(snap: FinanceSnapshot, isNew: boolean) {
-    const sug = suggestions(snap.month);
+    const sug = suggestions(snap.month, isNew);
     const next = { ...snap };
     for (const [k, v] of Object.entries(sug) as [NumKey, Suggestion][]) {
       if (isNew || next[k] == null) {
@@ -197,6 +206,8 @@ export default function Finance() {
             <FiSpendInput current={d.fi.annualSpend} />
           </Card>
         )}
+
+        <AssetsCard ctx={ctx} />
 
         <Earnings ctx={ctx} />
 

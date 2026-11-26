@@ -1,5 +1,5 @@
 import { parseISO } from 'date-fns';
-import { HABITS, HABIT_BY_ID, DOMAIN_LABELS, type HabitSpec } from './habits';
+import { HABITS, HABIT_BY_ID, DOMAIN_LABELS, isOff, offOn, type HabitSpec } from './habits';
 import {
   addDaysStr,
   dateRange,
@@ -405,6 +405,8 @@ const TITLES: Record<Insight['key'], string> = {
 export interface Flag {
   title: string;
   body: string;
+  /** One-tap fix shown under the flag. */
+  action?: { label: string; restore?: HabitId; to?: string };
 }
 
 export function detectGaming(ctx: LifeContext): Flag[] {
@@ -532,10 +534,14 @@ export function detectGaming(ctx: LifeContext): Flag[] {
 
   // 9. A paused habit that the data says is helping
   const planDw = correlations(ctx).find((c) => c.key === 'plan-deepwork');
-  if (ctx.profile.pausedHabits.includes('plan') && planDw?.r != null && planDw.r >= 0.3)
+  // Only for a pause: a deliberate removal is watched by flag 11 (deep work dropping) instead of nagging.
+  const planSt = ctx.profile.habitStatus?.plan;
+  const planPausedOnly = ctx.profile.pausedHabits.includes('plan') && !offOn(ctx.profile, 'plan', ctx.today);
+  if (planPausedOnly && planDw?.r != null && planDw.r >= 0.3)
     flags.push({
       title: 'A paused habit is helping you',
-      body: `Plan tomorrow is paused, but on days after you plan you do clearly more deep work (r = ${planDw.r.toFixed(2)} over ${planDw.n} days). Consider turning it back on in The System.`,
+      body: `Plan tomorrow is paused, but on days after you plan you do clearly more deep work (r = ${planDw.r.toFixed(2)} over ${planDw.n} days). If calendar automation covers it, ignore this — otherwise turn it back on.`,
+      action: { label: 'Turn Plan tomorrow back on', restore: 'plan' },
     });
 
   // 10. Track-only steps: watched, not scored — warn if they fall
@@ -546,7 +552,6 @@ export function detectGaming(ctx: LifeContext): Flag[] {
   }
 
   // 11. Planning removed: bring it back if deep work falls
-  const planSt = ctx.profile.habitStatus?.plan;
   if (planSt?.state === 'removed' && daysBetweenStr(planSt.from, ctx.today) >= 14) {
     const avgDw = (a: string, b: string) => {
       const v = dateRange(a, b).map((d) => ctx.byDate.get(d)).filter((c) => c && !c.sick).map((c) => c!.deepWorkMinutes ?? 0);
@@ -557,7 +562,8 @@ export function detectGaming(ctx: LifeContext): Flag[] {
     if (before !== null && after !== null && before > 0 && after < before * 0.8)
       flags.push({
         title: 'Deep work has dropped since planning was removed',
-        body: `Deep work averaged ${Math.round(before)} min/day in the 4 weeks before you removed "Plan tomorrow", and ${Math.round(after)} min/day since. Your earlier data linked evening planning to more deep work — consider restoring it in The System.`,
+        body: `Deep work averaged ${Math.round(before)} min/day in the 4 weeks before you removed "Plan tomorrow", and ${Math.round(after)} min/day since. Your earlier data linked evening planning to more deep work — consider restoring it.`,
+        action: { label: 'Turn Plan tomorrow back on', restore: 'plan' },
       });
   }
 
@@ -802,6 +808,6 @@ export function strongestPattern(ctx: LifeContext, corr = correlations(ctx)): st
   const best = corr.filter((c) => c.r !== null && Math.abs(c.r) >= 0.3).sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!))[0];
   if (!best) return null;
   const text = PATTERN_TEXT[best.key]?.(best.r!) ?? best.text;
-  const paused = best.key === 'plan-deepwork' && best.r! > 0 && ctx.profile.pausedHabits.includes('plan') ? ' Plan tomorrow is paused — this suggests turning it back on.' : '';
+  const paused = best.key === 'plan-deepwork' && best.r! > 0 && isOff(ctx.profile, 'plan', ctx.today) ? ' Plan tomorrow is switched off — this suggests it was helping.' : '';
   return `${text} (r = ${best.r!.toFixed(2)} over ${best.n} days — a relationship, not proof of cause.)${paused}`;
 }

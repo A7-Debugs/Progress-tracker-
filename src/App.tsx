@@ -28,6 +28,8 @@ import LifeDashboard from '@/routes/life/LifeDashboard';
 import CheckIn from '@/routes/life/CheckIn';
 import Review from '@/routes/life/Review';
 import Trends from '@/routes/life/Trends';
+import HealthAnalytics from '@/routes/life/HealthAnalytics';
+import CareerAnalytics from '@/routes/life/CareerAnalytics';
 import Finance from '@/routes/life/Finance';
 import Goals from '@/routes/life/Goals';
 import SystemPage from '@/routes/life/SystemPage';
@@ -59,6 +61,8 @@ export default function App() {
             <Route path="/train" element={<Today />} />
             <Route path="/review" element={<Review />} />
             <Route path="/trends" element={<Trends />} />
+            <Route path="/health" element={<HealthAnalytics />} />
+            <Route path="/career" element={<CareerAnalytics />} />
             <Route path="/finance" element={<Finance />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/system" element={<SystemPage />} />

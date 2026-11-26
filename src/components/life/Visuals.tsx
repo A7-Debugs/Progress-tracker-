@@ -160,7 +160,7 @@ export function TrendBars({
       <BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#1c1d23" vertical={false} />
         <XAxis dataKey="label" {...axis} axisLine={{ stroke: '#24252c' }} minTickGap={8} />
-        <YAxis {...axis} axisLine={false} width={34} domain={domain} />
+        <YAxis {...axis} axisLine={false} width={34} domain={domain} tickFormatter={(v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : String(v))} />
         <Tooltip {...tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.03)' }} formatter={(v) => [`${v}${unit}`, '']} />
         {target !== undefined && <ReferenceLine y={target} stroke={COLORS.warn} strokeDasharray="4 4" />}
         <Bar dataKey={dataKey} fill={color} radius={[5, 5, 0, 0]} maxBarSize={28} />

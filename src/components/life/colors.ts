@@ -15,3 +15,6 @@ export function scoreColor(score: number | null): string {
   if (score >= 40) return COLORS.warn;
   return COLORS.danger;
 }
+
+/** Categorical slots for multi-series charts, in fixed order (validated for colour-blind separation and contrast on the dark surface). */
+export const SERIES = ['#338ced', '#e76624', '#00a888', '#d28e05', '#e24d8b'];
